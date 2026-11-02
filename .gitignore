@@ -1,0 +1,48 @@
+!.gitignore
+# IDE Folder
+.idea*
+.vscode*
+.venv
+
+# vendor
+vendor/
+tmp/
+
+# Backup files
+*.bak
+
+# build
+/example
+build/
+dist/
+*cmd/metadec/build*
+cmd/build.sh
+cmd/kdiff
+cmd/cmd
+*.exe
+*.bat
+*.lst
+
+# tests
+contents
+!tests/*.go
+*tests/pkg*
+*tests/unpkg*
+*.xml
+*.bin
+*.json
+*.ini
+*.metatxt
+*.qsv
+
+# archive
+*.tar
+*.tar.gz
+*.gz
+*.rar
+*.7z
+*.zip
+*.tmp
+
+# config
+config.toml

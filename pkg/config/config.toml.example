@@ -1,0 +1,7 @@
+[app]
+debug = true
+
+[device.H1V0123456789]
+endpoint = "https://192.168.110.1"
+# 示例密文；请使用登录向导生成实际设备的配置。
+password = "U2FsdGVkX18AAQIDBAUGBy2bMhMKKcDMfrAZZS5zHdY="
