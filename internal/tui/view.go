@@ -56,18 +56,7 @@ func (m *model) View() tea.View {
 	if m.width < 40 || m.height < 18 {
 		content = "RUIJIE\n请扩大终端至至少 40×18\nCtrl+C 退出"
 	} else {
-		status := "就绪"
-		if m.request == nil && !m.done {
-			status = m.spinner.View() + "处理中"
-		}
-		if m.done {
-			status = "已完成"
-		}
-		if m.err != nil {
-			status = "失败"
-		}
-		header := lipgloss.NewStyle().Bold(true).Foreground(accent).Render(clip(m.title, max(1, m.width-18)))
-		header += strings.Repeat(" ", max(1, m.width-lipgloss.Width(header)-lipgloss.Width(status))) + status
+		header := lipgloss.NewStyle().Bold(true).Foreground(accent).Render(clip(m.title, m.width))
 		header += "\n" + lipgloss.NewStyle().Foreground(muted).Render(clip(m.subtitle, m.width)) + "\n\n"
 		l := m.layout()
 		nav := ""
@@ -103,7 +92,7 @@ func (m *model) View() tea.View {
 		if m.done {
 			help = "↑↓ / ←→ 查看结果  Enter / q 退出"
 		}
-		footer := "\n" + lipgloss.NewStyle().Foreground(muted).Render(clip(help, m.width)) + "\n" + lipgloss.NewStyle().Foreground(muted).Render(clip("Ctrl+C 退出 · Ctrl+L 清空结果 · 操作执行期间可滚动查看历史", m.width))
+		footer := "\n" + statusTheme.Help.Width(m.width).Render(clip(help, m.width-2)) + "\n" + m.statusView() + "\n"
 		content = header + body + footer
 	}
 	v := tea.NewView(fit(content, m.width, m.height))

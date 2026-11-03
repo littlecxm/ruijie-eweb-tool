@@ -16,7 +16,9 @@ func testModel(t *testing.T) *model {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	return newModel("eweb-tool", "", &UI{ctx: ctx, cancel: cancel})
+	m := newModel("eweb-tool", &UI{ctx: ctx, cancel: cancel})
+	m.Update(tea.WindowSizeMsg{Width: 110, Height: 32})
+	return m
 }
 
 func key(code rune) tea.KeyPressMsg       { return tea.KeyPressMsg{Code: code} }

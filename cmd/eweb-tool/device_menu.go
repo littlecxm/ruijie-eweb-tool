@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	backMenu      = "返回上级菜单"
+	backMenu      = "← 返回"
 	cancelAction  = "取消"
 	confirmAction = "确认执行"
 )
