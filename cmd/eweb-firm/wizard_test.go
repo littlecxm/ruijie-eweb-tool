@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -85,6 +86,49 @@ func TestWizardFirmwareRoundTrip(t *testing.T) {
 			}
 			if !strings.Contains(output.String(), "加密成功") || !strings.Contains(output.String(), "解密成功") {
 				t.Fatalf("missing success feedback: %s", output.String())
+			}
+		})
+	}
+}
+
+func TestWizardAcceptsPastedFilePaths(t *testing.T) {
+	for _, tt := range []struct {
+		name, filename, input string
+	}{
+		{"spaces", "firmware image.bin", `{dir}/firmware image.bin`},
+		{"escaped spaces", "firmware image.bin", `{dir}/firmware\ image.bin`},
+		{"escaped trailing space", "firmware.bin ", `{dir}/firmware.bin\ `},
+		{"single quotes", "firmware image.bin", `'{dir}/firmware image.bin'`},
+		{"double quotes", "firmware image.bin", `"{dir}/firmware image.bin"`},
+		{"escaped symbols", "固件 (v2) [a] {b} & ! # $name;%.bin", `{dir}/固件\ \(v2\)\ \[a\]\ \{b\}\ \&\ \!\ \#\ \$name\;\%.bin`},
+		{"escaped quotes", `firm'ware"image.bin`, `{dir}/firm\'ware\"image.bin`},
+		{"escaped backslash", `firm\ware.bin`, `{dir}/firm\\ware.bin`},
+		{"quoted apostrophe", "firm'ware image.bin", `'{dir}/firm'\''ware image.bin'`},
+		{"mixed quotes", "firmware image.bin", `{dir}/firm"ware image".bin`},
+		{"literal quotes", `"firmware".bin`, `{dir}/"firmware".bin`},
+		{"literal apostrophe", "firm'ware.bin", `{dir}/firm'ware.bin`},
+		{"literal backslash space", `firm\ ware.bin`, `{dir}/firm\ ware.bin`},
+		{"literal escaped symbols", `firm\(ware\).bin`, `{dir}/firm\(ware\).bin`},
+		{"quoted literal backslash", `firm\ware.bin`, `"{dir}/firm\ware.bin"`},
+		{"quoted trailing space", "firmware.bin ", `'{dir}/firmware.bin '`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			input := writeInput(t, tt.filename, []byte("test firmware"))
+			pasted := strings.ReplaceAll(tt.input, "{dir}", filepath.ToSlash(filepath.Dir(input)))
+			prompt := &fakePrompt{
+				choices: []string{encryptFirmwareV1, exitWizard},
+				inputs:  []string{"  " + pasted + "  "},
+			}
+			var output bytes.Buffer
+			if err := runWizard(prompt, &output); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(output.String(), "加密成功") {
+				t.Fatalf("pasted path %q failed: %s", pasted, output.String())
+			}
+			plain, _, err := firm.DecryptFirmware(readFile(t, input+".encrypted"))
+			if err != nil || string(plain) != "test firmware" {
+				t.Fatalf("pasted path selected the wrong firmware: %q, %v", plain, err)
 			}
 		})
 	}

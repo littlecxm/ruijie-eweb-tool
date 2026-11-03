@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/firm"
@@ -53,10 +52,7 @@ func runWizardContext(ctx context.Context, prompt prompter, out io.Writer) error
 			}
 			return err
 		}
-		path = strings.TrimSpace(path)
-		if len(path) >= 2 && ((path[0] == '"' && path[len(path)-1] == '"') || (path[0] == '\'' && path[len(path)-1] == '\'')) {
-			path = path[1 : len(path)-1]
-		}
+		path = normalizeFilePath(path)
 		if path == "" {
 			fmt.Fprintln(out, "错误: 输入文件路径不能为空")
 			continue
