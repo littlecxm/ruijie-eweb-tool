@@ -9,7 +9,7 @@ import (
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/eweb-module/devSta"
 )
 
-const listTerminals = "列出在线终端"
+const listTerminals = "在线终端"
 
 func printTerminals(out io.Writer, users *devSta.UserList) error {
 	fmt.Fprintf(out, "在线终端：%d 台\n", users.Total)

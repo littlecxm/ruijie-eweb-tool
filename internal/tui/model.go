@@ -21,26 +21,26 @@ import (
 const historyLimit = 256 << 10
 
 type model struct {
-	ui              *UI
-	title, subtitle string
-	width, height   int
-	keys            keyMap
-	help            help.Model
-	request         *promptMsg
-	input, filter   textinput.Model
-	searching       bool
-	selected        int
-	matches         []int
-	resultsFocused  bool
-	results         viewport.Model
-	spinner         spinner.Model
-	history         string
-	dividers        []resultDivider
-	commandStarted  time.Time
-	commandOutput   bool
-	lastChoice      string
-	done            bool
-	err             error
+	ui             *UI
+	title          string
+	width, height  int
+	keys           keyMap
+	help           help.Model
+	request        *promptMsg
+	input, filter  textinput.Model
+	searching      bool
+	selected       int
+	matches        []int
+	resultsFocused bool
+	results        viewport.Model
+	spinner        spinner.Model
+	history        string
+	dividers       []resultDivider
+	commandStarted time.Time
+	commandOutput  bool
+	lastChoice     string
+	done           bool
+	err            error
 }
 
 func newModel(title string, ui *UI) *model {
@@ -252,7 +252,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.respond(answer{value: choice})
 		}
 	case key.Matches(msg, m.keys.Back):
-		for _, back := range []string{"取消", "返回上级菜单", "退出"} {
+		for _, back := range []string{"取消", "← 返回", "返回上级菜单", "退出"} {
 			if slices.Contains(m.request.options, back) {
 				m.lastChoice = back
 				m.respond(answer{value: back})

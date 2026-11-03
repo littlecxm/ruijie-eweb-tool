@@ -32,14 +32,14 @@ func installPrompt(m *model, kind promptKind, label string, options ...string) c
 
 func TestMenuFilterNavigationAndEscape(t *testing.T) {
 	m := testModel(t)
-	reply := installPrompt(m, selectPrompt, "选择操作", "列出在线终端", "设备概览", "系统状态", "退出")
+	reply := installPrompt(m, selectPrompt, "选择操作", "列出在线终端", "设备概览", "系统设置", "退出")
 	m.Update(textKey("/"))
 	m.Update(tea.PasteMsg{Content: "系统"})
-	if len(m.matches) != 1 || m.request.options[m.matches[0]] != "系统状态" {
+	if len(m.matches) != 1 || m.request.options[m.matches[0]] != "系统设置" {
 		t.Fatalf("filtered options=%v", m.matches)
 	}
 	m.Update(pressKey(tea.KeyEnter))
-	if got := <-reply; got.value != "系统状态" || got.err != nil {
+	if got := <-reply; got.value != "系统设置" || got.err != nil {
 		t.Fatalf("answer=%+v", got)
 	}
 	if m.request != nil {
@@ -50,7 +50,7 @@ func TestMenuFilterNavigationAndEscape(t *testing.T) {
 		t.Fatal("submitted twice")
 	}
 
-	reply = installPrompt(m, selectPrompt, "系统状态", "当前版本", "设备时间", "返回上级菜单")
+	reply = installPrompt(m, selectPrompt, "系统设置", "当前版本", "设备时间", "← 返回")
 	m.Update(textKey("/"))
 	m.Update(tea.PasteMsg{Content: "不存在"})
 	m.Update(pressKey(tea.KeyEnter))
@@ -62,7 +62,7 @@ func TestMenuFilterNavigationAndEscape(t *testing.T) {
 		t.Fatal("escape did not clear search")
 	}
 	m.Update(pressKey(tea.KeyEscape))
-	if got := <-reply; got.value != "返回上级菜单" {
+	if got := <-reply; got.value != "← 返回" {
 		t.Fatalf("back=%+v", got)
 	}
 }
@@ -119,7 +119,7 @@ func TestResponsiveLayoutFitsTerminal(t *testing.T) {
 			m := testModel(t)
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			for _, confirm := range []bool{false, true} {
-				options := []string{"列出在线终端", "设备概览", "系统状态", "系统设置", "备份与恢复", "固件升级", "设备维护", "退出"}
+				options := []string{"在线终端", "设备概览", "系统设置", "退出"}
 				label := "选择操作"
 				if confirm {
 					options = []string{"取消", "确认执行"}
@@ -145,9 +145,16 @@ func TestResponsiveLayoutFitsTerminal(t *testing.T) {
 						t.Errorf("line exceeds width %d: %s", size[0], line)
 					}
 				}
-				if size[0] >= 40 && size[1] >= 18 && confirm {
+				if size[0] >= 40 && size[1] >= 18 {
 					plain := ansi.Strip(view.Content)
-					if !strings.Contains(plain, "取消") || !strings.Contains(plain, "确认执行") {
+					if strings.Contains(plain, m.title) {
+						t.Fatal("program title still occupies a row")
+					}
+					lines := strings.Split(plain, "\n")
+					if lines[len(lines)-1] != ansi.Strip(m.statusView()) || !strings.Contains(lines[len(lines)-2], ansi.Strip(m.help.ShortHelpView(m.helpBindings()))) {
+						t.Fatalf("footer is not anchored to the bottom: %s", plain)
+					}
+					if confirm && (!strings.Contains(plain, "取消") || !strings.Contains(plain, "确认执行")) {
 						t.Fatalf("confirmation options hidden: %s", plain)
 					}
 				}
@@ -198,6 +205,55 @@ func TestResultScrollingAndBoundedSafeHistory(t *testing.T) {
 	m.appendOutput(strings.Repeat("汉字🙂", historyLimit))
 	if len(m.history) > historyLimit || !utf8.ValidString(m.history) {
 		t.Fatal("history limit broke Unicode or memory bound")
+	}
+}
+
+func TestResultsScrollbarFollowsViewport(t *testing.T) {
+	m := testModel(t)
+	installPrompt(m, selectPrompt, "选择操作", "系统设置", "退出")
+	m.appendOutput(strings.Repeat("查询结果\n", 100))
+	m.results.GotoTop()
+	m.Update(pressKey(tea.KeyTab))
+	thumbRows := func() []int {
+		t.Helper()
+		var rows []int
+		for i, line := range strings.Split(ansi.Strip(m.resultsView()), "\n") {
+			if strings.HasSuffix(line, "┃") {
+				rows = append(rows, i)
+			} else if !strings.HasSuffix(line, "│") {
+				t.Fatalf("scrollbar missing from result row %d: %q", i, line)
+			}
+		}
+		if len(rows) == 0 {
+			t.Fatal("scrollbar has no thumb")
+		}
+		return rows
+	}
+	if rows := thumbRows(); rows[0] != 0 {
+		t.Fatalf("thumb is not at the top: %v", rows)
+	}
+	m.Update(pressKey(tea.KeyPgDown))
+	if rows := thumbRows(); rows[0] == 0 {
+		t.Fatalf("thumb did not move after scrolling: %v", rows)
+	}
+	for !m.results.AtBottom() {
+		m.Update(pressKey(tea.KeyPgDown))
+	}
+	if rows := thumbRows(); rows[len(rows)-1] != m.results.Height()-1 {
+		t.Fatalf("thumb is not at the bottom: %v", rows)
+	}
+	if strings.Contains(ansi.Strip(m.View().Content), "%") {
+		t.Fatal("scroll percentage still rendered")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 110, Height: 150})
+	if strings.ContainsAny(ansi.Strip(m.resultsView()), "┃│") {
+		t.Fatal("scrollbar rendered when all results fit")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 110, Height: 32})
+	thumbRows()
+	m.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
+	if strings.ContainsAny(ansi.Strip(m.resultsView()), "┃│") {
+		t.Fatal("scrollbar remained after clearing results")
 	}
 }
 

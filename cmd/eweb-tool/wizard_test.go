@@ -61,7 +61,7 @@ func loginResult(sn string) *moduleauth.LoginResult {
 func TestNewDeviceDefaultAndSavedLogin(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	cfg := config.New()
-	prompt := &fakePrompt{selections: []int{0, 7}, password: "secret-password"}
+	prompt := &fakePrompt{selections: []int{0, 3}, password: "secret-password"}
 	var output bytes.Buffer
 	login := func(_ context.Context, c *client.Client, password string) (*moduleauth.LoginResult, error) {
 		if c.Endpoint() != "https://192.168.110.1" || password != "secret-password" {
@@ -102,7 +102,7 @@ func TestNewDeviceDefaultAndSavedLogin(t *testing.T) {
 	if err != nil || plain != "secret-password" {
 		t.Fatal("password was not saved as compatible ciphertext")
 	}
-	savedPrompt := &fakePrompt{selections: []int{0, 7}}
+	savedPrompt := &fakePrompt{selections: []int{0, 3}}
 	if err := runWizard(context.Background(), loaded, path, false, savedPrompt, login, &output); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestInvalidSavedPasswordPromptsForReplacement(t *testing.T) {
 			cfg.Device["SN001"] = config.DeviceConfig{Endpoint: "https://device", Password: tt.stored}
 			cfg.Device["SN002"] = config.DeviceConfig{Endpoint: "https://other-device", Password: "other-ciphertext"}
 			path := filepath.Join(t.TempDir(), "config.toml")
-			prompt := &fakePrompt{selections: []int{0, 7}, password: "new-password"}
+			prompt := &fakePrompt{selections: []int{0, 3}, password: "new-password"}
 			login := func(_ context.Context, _ *client.Client, password string) (*moduleauth.LoginResult, error) {
 				if password != "new-password" {
 					t.Fatal("legacy password was reused")
@@ -187,7 +187,7 @@ func TestSavedLoginFailureRequestsNewPassword(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			prompt := &fakePrompt{selections: []int{0, 7}, password: "replacement-password", passwordErr: tt.passwordErr}
+			prompt := &fakePrompt{selections: []int{0, 3}, password: "replacement-password", passwordErr: tt.passwordErr}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls := 0

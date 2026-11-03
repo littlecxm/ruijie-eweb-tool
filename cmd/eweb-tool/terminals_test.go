@@ -32,7 +32,7 @@ func TestWizardListsAndRefreshesTerminals(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"code": 0, "data": data})
 	}))
 	defer server.Close()
-	prompt := &fakePrompt{selections: []int{0, 0, 0, 7}, endpoint: server.URL, password: "password"}
+	prompt := &fakePrompt{selections: []int{0, 0, 0, 3}, endpoint: server.URL, password: "password"}
 	login := func(context.Context, *client.Client, string) (*moduleauth.LoginResult, error) {
 		return loginResult("SN001"), nil
 	}
@@ -69,7 +69,7 @@ func TestDeviceMenuRecoversFromQueryFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.CloseIdleConnections()
-	prompt := &fakePrompt{selections: []int{0, 0, 7}}
+	prompt := &fakePrompt{selections: []int{0, 0, 3}}
 	var output bytes.Buffer
 	if err := runDeviceMenu(context.Background(), c, "sid", prompt, &output); err != nil {
 		t.Fatal(err)

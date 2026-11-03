@@ -1,8 +1,5 @@
 # System API — 系统管理
 
-根据固件源码 `usr-lib/lua/luci/modules/system.lua` 整理，覆盖该模块的全部 16 个非局部函数。
-源码根目录为 `~/git/ruijie`；本文中的源码路径均相对于该目录。
-
 本文采用统一的 HTTP API 文档结构。设备实际采用 RPC over HTTP：所有操作共用
 `POST /cgi-bin/luci/api/system`，通过请求体的 `method` 选择操作。下文保留真实协议，
 没有额外定义设备未实现的 REST 资源路径或 GET、PUT、DELETE 接口。
@@ -18,29 +15,29 @@ Content-Type: application/json
 Accept: application/json
 ```
 
-| 项目 | 说明 |
-| --- | --- |
-| Base URL | 设备的 HTTP(S) 地址，例如 `https://192.168.110.1` |
-| API 路径 | `/cgi-bin/luci/api/system` |
-| HTTP 方法 | `POST`，包括查询、修改和删除操作 |
-| 鉴权 | 管理员会话；查询参数 `auth` 传入登录获得的 `sid` |
-| 请求格式 | `application/json` |
-| 响应格式 | `application/json` |
-| 前端页面 | 系统管理 `stepsystool`；升级页 `/admin/alone/systool/systool_upgrade`，不是 API 地址 |
+| 项目      | 说明                                                                                 |
+| --------- | ------------------------------------------------------------------------------------ |
+| Base URL  | 设备的 HTTP(S) 地址，例如 `https://192.168.110.1`                                    |
+| API 路径  | `/cgi-bin/luci/api/system`                                                           |
+| HTTP 方法 | `POST`，包括查询、修改和删除操作                                                     |
+| 鉴权      | 管理员会话；查询参数 `auth` 传入登录获得的 `sid`                                     |
+| 请求格式  | `application/json`                                                                   |
+| 响应格式  | `application/json`                                                                   |
+| 前端页面  | 系统管理 `stepsystool`；升级页 `/admin/alone/systool/systool_upgrade`，不是 API 地址 |
 
 查询参数：
 
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `auth` | string | 是 | 有效的登录会话 SID；由公共鉴权逻辑校验 |
+| 参数   | 类型   | 必填 | 说明                                   |
+| ------ | ------ | ---- | -------------------------------------- |
+| `auth` | string | 是   | 有效的登录会话 SID；由公共鉴权逻辑校验 |
 
 请求体：
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `method` | string | 是 | 本文列出的函数名，大小写敏感 |
+| 字段     | 类型                   | 必填   | 说明                                                                         |
+| -------- | ---------------------- | ------ | ---------------------------------------------------------------------------- |
+| `method` | string                 | 是     | 本文列出的函数名，大小写敏感                                                 |
 | `params` | object / string / null | 按接口 | 通常为对象；无参数时传 `null` 或 `{}`，也可省略；`getRebootShell` 接收字符串 |
-| `id` | string / number | 否 | 请求标识，响应原样返回；省略时响应为 `null` |
+| `id`     | string / number        | 否     | 请求标识，响应原样返回；省略时响应为 `null`                                  |
 
 `params` 作为一个参数整体传给 Lua 函数，不按数组展开；不需要额外传入 `module` 或
 `device`。省略 `params` 或传 `null` 时，分发器使用空 Lua table。
@@ -71,12 +68,12 @@ curl --request POST \
 }
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `code` | integer | RPC 包装层固定为 `0`，不代表业务操作成功 |
-| `id` | string / number / null | 对应请求的 `id` |
-| `data` | 任意 JSON 值 | 模块函数返回值，可能是对象、字符串、数字、布尔值或 `null` |
-| `error` | object / null | RPC 错误；正常调用为 `null` |
+| 字段    | 类型                   | 说明                                                      |
+| ------- | ---------------------- | --------------------------------------------------------- |
+| `code`  | integer                | RPC 包装层固定为 `0`，不代表业务操作成功                  |
+| `id`    | string / number / null | 对应请求的 `id`                                           |
+| `data`  | 任意 JSON 值           | 模块函数返回值，可能是对象、字符串、数字、布尔值或 `null` |
+| `error` | object / null          | RPC 错误；正常调用为 `null`                               |
 
 **下文的“返回数据”均指完整响应中的 `data`。** 调用方需要依次判断 HTTP 状态、
 `error` 以及接口自身的 `data.code` 或 `data.result`。
@@ -91,13 +88,13 @@ curl --request POST \
 
 ### 公共错误
 
-| HTTP 状态 | 错误位置 | 值 | 含义 |
-| --- | --- | --- | --- |
-| `403` | `code` | `2` | 鉴权失败；返回 `msg: "403 Forbidden, auth is not passed"` |
-| `403` | `code` | `2` | 请求检查失败；返回 `msg: "403 Forbidden, INVALID DATA"` |
-| 通常 `200` | `error.code` | `-32700` | JSON 解析失败，`message: "Parse error."` |
-| 通常 `200` | `error.code` | `-32600` | `method` 不是字符串，`message: "Invalid request."` |
-| 通常 `200` | `error.code` | `-32601` | 找不到方法，`message: "Method not found."` |
+| HTTP 状态  | 错误位置     | 值       | 含义                                                                |
+| ---------- | ------------ | -------- | ------------------------------------------------------------------- |
+| `403`      | `code`       | `2`      | 鉴权失败；返回 `msg: "403 Forbidden, auth is not passed"`           |
+| `403`      | `code`       | `2`      | 请求检查失败；返回 `msg: "403 Forbidden, INVALID DATA"`             |
+| 通常 `200` | `error.code` | `-32700` | JSON 解析失败，`message: "Parse error."`                            |
+| 通常 `200` | `error.code` | `-32600` | `method` 不是字符串，`message: "Invalid request."`                  |
+| 通常 `200` | `error.code` | `-32601` | 找不到方法，`message: "Method not found."`                          |
 | 通常 `200` | `error.code` | `-32602` | Lua 函数执行异常，例如参数类型错误；可能包含 `data`、`res` 诊断字段 |
 
 鉴权失败的响应不使用 RPC 包装结构：
@@ -127,48 +124,48 @@ RPC 方法不存在的响应示例：
 
 下列接口的 HTTP 方法均为 `POST`，路径均为 `/cgi-bin/luci/api/system`。
 
-| 功能 | `method` | `params` | 行为 |
-| --- | --- | --- | --- |
-| 配置语言 | [`setLang`](#setlang) | `{ "lang": "zh_cn" }` | 写入并提交配置 |
-| 查询设备版本 | [`getVersion`](#getversion) | `{ "deviceType": "self" }` | 读取当前版本，可检查新版本 |
-| 读取设备时间 | [`asyncTime`](#asynctime) | `null` | 只读，当前实现不设置时间 |
-| 查询会话超时 | [`getSessiontime`](#getsessiontime) | `null` | 只读 |
-| 配置引导标识 | [`setStep`](#setstep) | `{ "steped": "1" }` | 写入并提交配置 |
-| 查询剩余空间 | [`getOverlayFreeSpace`](#getoverlayfreespace) | `null` | 只读 |
-| 重启设备 | [`reboot`](#reboot) | `null` | 异步重启 |
-| 恢复出厂配置 | [`restoreConfiguration`](#restoreconfiguration) | `null` | 异步恢复，可能重启 |
-| 提交固件升级 | [`upgradeConfirm`](#upgradeconfirm) | `{ "path": "/tmp/firmware.img" }` | 异步升级 |
-| 取消固件升级 | [`upgradeCancel`](#upgradecancel) | `null` | 删除固定路径的升级文件 |
-| 查询备份文件 | [`hasBackupFile`](#hasbackupfile) | `null` | 只读 |
-| 恢复备份配置 | [`restoreConfig`](#restoreconfig) | `null` | 导入已有备份并异步重启 |
-| 删除备份文件 | [`delRestoreConfig`](#delrestoreconfig) | `null` | 删除固定路径的备份文件 |
-| 查询清理脚本 | [`hasKillRemaining`](#haskillremaining) | `null` | 只读 |
-| 执行清理脚本 | [`doKillRemaining`](#dokillremaining) | `null` | 内部辅助函数，同步执行脚本 |
-| 生成重启命令 | [`getRebootShell`](#getrebootshell) | `"user reboot"` | 内部辅助函数，仅返回命令文本 |
+| 功能         | `method`                                        | `params`                          | 行为                         |
+| ------------ | ----------------------------------------------- | --------------------------------- | ---------------------------- |
+| 配置语言     | [`setLang`](#setlang)                           | `{ "lang": "zh_cn" }`             | 写入并提交配置               |
+| 查询设备版本 | [`getVersion`](#getversion)                     | `{ "deviceType": "self" }`        | 读取当前版本，可检查新版本   |
+| 读取设备时间 | [`asyncTime`](#asynctime)                       | `null`                            | 只读，当前实现不设置时间     |
+| 查询会话超时 | [`getSessiontime`](#getsessiontime)             | `null`                            | 只读                         |
+| 配置引导标识 | [`setStep`](#setstep)                           | `{ "steped": "1" }`               | 写入并提交配置               |
+| 查询剩余空间 | [`getOverlayFreeSpace`](#getoverlayfreespace)   | `null`                            | 只读                         |
+| 重启设备     | [`reboot`](#reboot)                             | `null`                            | 异步重启                     |
+| 恢复出厂配置 | [`restoreConfiguration`](#restoreconfiguration) | `null`                            | 异步恢复，可能重启           |
+| 提交固件升级 | [`upgradeConfirm`](#upgradeconfirm)             | `{ "path": "/tmp/firmware.img" }` | 异步升级                     |
+| 取消固件升级 | [`upgradeCancel`](#upgradecancel)               | `null`                            | 删除固定路径的升级文件       |
+| 查询备份文件 | [`hasBackupFile`](#hasbackupfile)               | `null`                            | 只读                         |
+| 恢复备份配置 | [`restoreConfig`](#restoreconfig)               | `null`                            | 导入已有备份并异步重启       |
+| 删除备份文件 | [`delRestoreConfig`](#delrestoreconfig)         | `null`                            | 删除固定路径的备份文件       |
+| 查询清理脚本 | [`hasKillRemaining`](#haskillremaining)         | `null`                            | 只读                         |
+| 执行清理脚本 | [`doKillRemaining`](#dokillremaining)           | `null`                            | 内部辅助函数，同步执行脚本   |
+| 生成重启命令 | [`getRebootShell`](#getrebootshell)             | `"user reboot"`                   | 内部辅助函数，仅返回命令文本 |
 
 ## eweb-tool 实现
 
 Go 包为 `pkg/eweb-module/system`。以下函数均接收 `ctx`、`c *client.Client`、
 `sid`；表中的参数为这三个公共参数之后的部分。全部 16 个公开方法均有客户端实现和菜单入口。
 
-| RPC 方法 | Go 函数及额外参数 | 二级菜单位置 |
-| --- | --- | --- |
-| `setLang` | `SetLang(..., lang string) error` | 系统设置 → 设置 Web 语言 |
-| `getVersion` | `GetVersion(..., deviceType string)` | 系统状态 → 当前版本 / 检查新版本 |
-| `asyncTime` | `AsyncTime(...)` | 系统状态 → 设备时间 |
-| `getSessiontime` | `GetSessionTime(...)` | 系统状态 → 会话超时 |
-| `setStep` | `SetStep(..., steped string) error` | 系统设置 → 设置引导状态 |
-| `getOverlayFreeSpace` | `GetOverlayFreeSpace(...)` | 系统状态 → Overlay 剩余空间 |
-| `reboot` | `Reboot(...)` | 设备维护 → 重启设备 |
-| `restoreConfiguration` | `RestoreConfiguration(...)` | 设备维护 → 恢复出厂配置 |
-| `upgradeConfirm` | `UpgradeConfirm(..., options UpgradeOptions)` | 固件升级 → 提交固件升级 |
-| `upgradeCancel` | `UpgradeCancel(...)` | 固件升级 → 删除待升级固件 |
-| `hasBackupFile` | `HasBackupFile(...)` | 备份与恢复 → 检查设备备份文件 |
-| `restoreConfig` | `RestoreConfig(..., localMAC bool)` | 备份与恢复 → 恢复设备备份 |
-| `delRestoreConfig` | `DelRestoreConfig(...)` | 备份与恢复 → 删除设备备份文件 |
-| `hasKillRemaining` | `HasKillRemaining(...)` | 设备维护 → 检查升级清理脚本 |
-| `doKillRemaining` | `DoKillRemaining(...) error` | 设备维护 → 执行升级清理脚本 |
-| `getRebootShell` | `GetRebootShell(..., reason string)` | 设备维护 → 查看重启命令 |
+| RPC 方法               | Go 函数及额外参数                             | 二级菜单位置                     |
+| ---------------------- | --------------------------------------------- | -------------------------------- |
+| `setLang`              | `SetLang(..., lang string) error`             | 系统设置 → 设置 Web 语言         |
+| `getVersion`           | `GetVersion(..., deviceType string)`          | 系统设置 → 当前版本 / 检查新版本 |
+| `asyncTime`            | `AsyncTime(...)`                              | 系统设置 → 设备时间              |
+| `getSessiontime`       | `GetSessionTime(...)`                         | 系统设置 → 会话超时              |
+| `setStep`              | `SetStep(..., steped string) error`           | 系统设置 → 设置引导状态          |
+| `getOverlayFreeSpace`  | `GetOverlayFreeSpace(...)`                    | 系统设置 → Overlay 剩余空间      |
+| `reboot`               | `Reboot(...)`                                 | 系统设置 → 重启设备              |
+| `restoreConfiguration` | `RestoreConfiguration(...)`                   | 系统设置 → 恢复出厂配置          |
+| `upgradeConfirm`       | `UpgradeConfirm(..., options UpgradeOptions)` | 系统设置 → 提交固件升级          |
+| `upgradeCancel`        | `UpgradeCancel(...)`                          | 系统设置 → 删除待升级固件        |
+| `hasBackupFile`        | `HasBackupFile(...)`                          | 系统设置 → 检查设备备份文件      |
+| `restoreConfig`        | `RestoreConfig(..., localMAC bool)`           | 系统设置 → 恢复设备备份          |
+| `delRestoreConfig`     | `DelRestoreConfig(...)`                       | 系统设置 → 删除设备备份文件      |
+| `hasKillRemaining`     | `HasKillRemaining(...)`                       | 系统设置 → 检查升级清理脚本      |
+| `doKillRemaining`      | `DoKillRemaining(...) error`                  | 系统设置 → 执行升级清理脚本      |
+| `getRebootShell`       | `GetRebootShell(..., reason string)`          | 系统设置 → 查看重启命令          |
 
 除表中标明仅返回 `error` 的函数外，其余返回相应数据及 `error`：版本为 `*Version`，
 异步操作为 `*Operation`，备份状态为 `*BackupFile`，脚本存在性为 `bool`，
@@ -198,9 +195,9 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 
 **请求参数**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `params.lang` | string | 否 | `"en"` | 必须存在于运行时的 `luci.modules.env.langMap` |
+| 参数          | 类型   | 必填 | 默认值 | 说明                                          |
+| ------------- | ------ | ---- | ------ | --------------------------------------------- |
+| `params.lang` | string | 否   | `"en"` | 必须存在于运行时的 `luci.modules.env.langMap` |
 
 ```json
 {"method":"setLang","params":{"lang":"zh_cn"}}
@@ -212,8 +209,8 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 {"result":true}
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
+| 字段     | 类型    | 说明                                            |
+| -------- | ------- | ----------------------------------------------- |
 | `result` | boolean | 语言存在时返回 `true`；不支持的语言返回 `false` |
 
 语言表优先读取 UCI 的 `luci.languages`。缺少有效语言表时，EAP 的回退列表为
@@ -227,9 +224,9 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 
 **请求参数**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `params.deviceType` | string | 否 | 无 | `"self"` 或 `"bottom"` 会执行版本检查；省略或其他值仅返回当前版本 |
+| 参数                | 类型   | 必填 | 默认值 | 说明                                                              |
+| ------------------- | ------ | ---- | ------ | ----------------------------------------------------------------- |
+| `params.deviceType` | string | 否   | 无     | `"self"` 或 `"bottom"` 会执行版本检查；省略或其他值仅返回当前版本 |
 
 ```json
 {"method":"getVersion","params":{"deviceType":"self"}}
@@ -241,10 +238,10 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 {"cur":"ReyeeOS 2.430.0.1924\n","new":[]}
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `cur` | string，可缺省 | 版本文件的原始内容，可能带换行；读取失败时字段省略 |
-| `new` | 任意 JSON 值 | 升级脚本输出经 `tool.decode()` 处理的结果；不检查时为空 table，在当前编码器下为 `[]` |
+| 字段  | 类型           | 说明                                                                                 |
+| ----- | -------------- | ------------------------------------------------------------------------------------ |
+| `cur` | string，可缺省 | 版本文件的原始内容，可能带换行；读取失败时字段省略                                   |
+| `new` | 任意 JSON 值   | 升级脚本输出经 `tool.decode()` 处理的结果；不检查时为空 table，在当前编码器下为 `[]` |
 
 版本检查分别执行 `cloud_upgrade.sh --version-check self` 或
 `cloud_upgrade.sh --version-check bottom`。`system.lua` 未定义二者的设备范围差异，
@@ -295,9 +292,9 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 
 **请求参数**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `params.steped` | string | 是 | 无 | 仅接受字符串 `"0"`、`"1"`，分别表示未完成、已完成引导；不接受数字或布尔值 |
+| 参数            | 类型   | 必填 | 默认值 | 说明                                                                      |
+| --------------- | ------ | ---- | ------ | ------------------------------------------------------------------------- |
+| `params.steped` | string | 是   | 无     | 仅接受字符串 `"0"`、`"1"`，分别表示未完成、已完成引导；不接受数字或布尔值 |
 
 ```json
 {"method":"setStep","params":{"steped":"1"}}
@@ -354,10 +351,10 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 {"code":0,"shell":"sleep 1; sync; reboot >/dev/null 2>&1;"}
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `code` | integer | 固定为 `0`，表示函数已完成任务下发流程 |
-| `shell` | string | 实际下发的命令，随设备是否支持重启原因记录而变化 |
+| 字段    | 类型    | 说明                                             |
+| ------- | ------- | ------------------------------------------------ |
+| `code`  | integer | 固定为 `0`，表示函数已完成任务下发流程           |
+| `shell` | string  | 实际下发的命令，随设备是否支持重启原因记录而变化 |
 
 常规命令先等待 1 秒再同步并重启。操作可能中断当前连接，需要在设备启动后重新确认状态。
 
@@ -377,10 +374,10 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 {"code":0,"shell":"sleep 1; firstboot; sleep 2; sync; reboot"}
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `code` | integer | 固定为 `0`，不代表恢复已经完成 |
-| `shell` | string | 常规恢复命令或设备统一框架的恢复命令 |
+| 字段    | 类型    | 说明                                 |
+| ------- | ------- | ------------------------------------ |
+| `code`  | integer | 固定为 `0`，不代表恢复已经完成       |
+| `shell` | string  | 常规恢复命令或设备统一框架的恢复命令 |
 
 常规分支执行 `firstboot` 后重启，重启原因固定为 `"restore"`。当设备类型为 `msw`
 （该方法默认值），且 `cmd.devSta.get({device="pc", module="devResetLocal"})` 返回
@@ -396,12 +393,12 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 
 **请求参数**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `params.path` | string | 是 | 无 | 设备上的固件路径，通常使用上传结果中的 `/tmp/firmware.img`；整网升级分支同样会校验此参数 |
-| `params.check` | boolean | 否 | `false` | 为 `true` 时，先检查固定文件 `/tmp/firmware.img` 是否存在，不检查 `path` 指向的其他文件 |
-| `params.isPersist` | boolean | 否 | `false` | 常规升级是否保留配置；`false` 会给 `sysupgrade` 添加 `-n` |
-| `params.isEstAll` | boolean | 否 | `false` | 为 `true` 时使用整网升级命令 `sd_tipc_client_upgrade upgrade_req` |
+| 参数               | 类型    | 必填 | 默认值  | 说明                                                                                     |
+| ------------------ | ------- | ---- | ------- | ---------------------------------------------------------------------------------------- |
+| `params.path`      | string  | 是   | 无      | 设备上的固件路径，通常使用上传结果中的 `/tmp/firmware.img`；整网升级分支同样会校验此参数 |
+| `params.check`     | boolean | 否   | `false` | 为 `true` 时，先检查固定文件 `/tmp/firmware.img` 是否存在，不检查 `path` 指向的其他文件  |
+| `params.isPersist` | boolean | 否   | `false` | 常规升级是否保留配置；`false` 会给 `sysupgrade` 添加 `-n`                                |
+| `params.isEstAll`  | boolean | 否   | `false` | 为 `true` 时使用整网升级命令 `sd_tipc_client_upgrade upgrade_req`                        |
 
 ```json
 {
@@ -421,11 +418,11 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 {"code":0}
 ```
 
-| `data.code` | `data.msg` | 含义 |
-| --- | --- | --- |
-| `0` | 无 | 已进入异步升级任务下发流程 |
-| `1` | `firmware not found, please try again.` | `check` 为真且 `/tmp/firmware.img` 不存在 |
-| `-1` | `params illegal` | `path` 包含命令过滤字符 |
+| `data.code` | `data.msg`                              | 含义                                      |
+| ----------- | --------------------------------------- | ----------------------------------------- |
+| `0`         | 无                                      | 已进入异步升级任务下发流程                |
+| `1`         | `firmware not found, please try again.` | `check` 为真且 `/tmp/firmware.img` 不存在 |
+| `-1`        | `params illegal`                        | `path` 包含命令过滤字符                   |
 
 实现细节与调用约束：
 
@@ -478,10 +475,10 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 {"hasfile":false,"path":"/overlay/backup-config.tar.gz"}
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `hasfile` | boolean | 文件存在时为 `true`，否则为 `false` |
-| `path` | string | 固定为 `/overlay/backup-config.tar.gz`，文件不存在时仍返回 |
+| 字段      | 类型    | 说明                                                       |
+| --------- | ------- | ---------------------------------------------------------- |
+| `hasfile` | boolean | 文件存在时为 `true`，否则为 `false`                        |
+| `path`    | string  | 固定为 `/overlay/backup-config.tar.gz`，文件不存在时仍返回 |
 
 ### restoreConfig
 
@@ -491,9 +488,9 @@ JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符�
 
 此方法还通过被调用的 `file.restoreConfig` 读取一个可选的 **URL 查询参数**：
 
-| 参数 | 位置 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- | --- |
-| `localMac` | query | string | 否 | 无 | 仅 `"1"` 时给 `sysupgrade` 添加 `--local-mac`；不是 `params.localMac` |
+| 参数       | 位置  | 类型   | 必填 | 默认值 | 说明                                                                  |
+| ---------- | ----- | ------ | ---- | ------ | --------------------------------------------------------------------- |
+| `localMac` | query | string | 否   | 无     | 仅 `"1"` 时给 `sysupgrade` 添加 `--local-mac`；不是 `params.localMac` |
 
 ```http
 POST /cgi-bin/luci/api/system?auth=<sid>&localMac=1 HTTP/1.1
@@ -514,12 +511,12 @@ Content-Type: application/json
 }
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `code` | integer | `0`：已下发重启；`1`：导入命令输出包含 `not supports` |
-| `addr` | string | 成功分支返回 HTTP 环境中的 `SERVER_NAME`，缺失时为空字符串；不是解析出的恢复后地址 |
-| `_shell` | string | 成功分支实际下发的重启命令，随设备环境变化 |
-| `msg` | string | 失败分支返回导入命令的原始输出 |
+| 字段     | 类型    | 说明                                                                               |
+| -------- | ------- | ---------------------------------------------------------------------------------- |
+| `code`   | integer | `0`：已下发重启；`1`：导入命令输出包含 `not supports`                              |
+| `addr`   | string  | 成功分支返回 HTTP 环境中的 `SERVER_NAME`，缺失时为空字符串；不是解析出的恢复后地址 |
+| `_shell` | string  | 成功分支实际下发的重启命令，随设备环境变化                                         |
+| `msg`    | string  | 失败分支返回导入命令的原始输出                                                     |
 
 失败分支返回形如 `{"code":1,"msg":"<包含 not supports 的命令输出>"}`。
 导入命令为 `sysupgrade -r /overlay/backup-config.tar.gz`，带 `localMac=1` 时为
@@ -599,9 +596,9 @@ null
 
 **请求参数**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `params` | string | 是 | 无 | 直接传入重启原因字符串；不是 `{ "reason": "..." }` 对象 |
+| 参数     | 类型   | 必填 | 默认值 | 说明                                                    |
+| -------- | ------ | ---- | ------ | ------------------------------------------------------- |
+| `params` | string | 是   | 无     | 直接传入重启原因字符串；不是 `{ "reason": "..." }` 对象 |
 
 ```json
 {"method":"getRebootShell","params":"user reboot"}
@@ -626,15 +623,15 @@ null
 
 ## 源码依据与边界
 
-| 源码文件 | 核对内容 |
-| --- | --- |
-| `usr-lib/lua/luci/modules/system.lua` | 本文全部接口、参数、默认值、返回值与操作分支 |
-| `usr-lib/lua/luci/controller/web/api.lua` | `api/system` 路由、会话鉴权、模块绑定 |
-| `usr-lib/lua/luci/utils/jsonrpc.lua` | 方法解析、参数整体传递、响应包装、RPC 错误 |
-| `usr-lib/lua/luci/json.lua` | 空 table、`null` 与 JSON 编解码行为 |
-| `usr-lib/lua/luci/modules/env.lua` | `setLang` 的语言表与设备回退列表 |
-| `usr-lib/lua/luci/modules/file.lua` | 固件删除任务、上传前置流程、`restoreConfig(true)` 的真实行为 |
-| `usr-lib/lua/luci/utils/tool.lua` | 命令过滤、JSON 输出解码、异步执行及请求检查 |
+| 源码文件                                  | 核对内容                                                     |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| `usr-lib/lua/luci/modules/system.lua`     | 本文全部接口、参数、默认值、返回值与操作分支                 |
+| `usr-lib/lua/luci/controller/web/api.lua` | `api/system` 路由、会话鉴权、模块绑定                        |
+| `usr-lib/lua/luci/utils/jsonrpc.lua`      | 方法解析、参数整体传递、响应包装、RPC 错误                   |
+| `usr-lib/lua/luci/json.lua`               | 空 table、`null` 与 JSON 编解码行为                          |
+| `usr-lib/lua/luci/modules/env.lua`        | `setLang` 的语言表与设备回退列表                             |
+| `usr-lib/lua/luci/modules/file.lua`       | 固件删除任务、上传前置流程、`restoreConfig(true)` 的真实行为 |
+| `usr-lib/lua/luci/utils/tool.lua`         | 命令过滤、JSON 输出解码、异步执行及请求检查                  |
 
 `getCurVersion`、`getNewVersion` 是局部函数，不能作为该模块的 RPC 方法直接调用。
 本文依据本地源码整理，响应示例用于说明结构，未在真实设备上执行升级、重启、恢复或删除操作。

@@ -53,11 +53,7 @@ func runDeviceMenu(ctx context.Context, c *client.Client, sid string, prompt pro
 			return false, printTerminals(out, users)
 		}},
 		m.submenu("设备概览", m.overviewActions()),
-		m.submenu("系统状态", m.statusActions()),
 		m.submenu("系统设置", m.settingsActions()),
-		m.submenu("备份与恢复", m.backupActions()),
-		m.submenu("固件升级", m.firmwareActions()),
-		m.submenu("设备维护", m.maintenanceActions()),
 	})
 	return err
 }
@@ -160,7 +156,7 @@ func (m *deviceMenu) statusActions() []menuAction {
 }
 
 func (m *deviceMenu) settingsActions() []menuAction {
-	return []menuAction{
+	return slices.Concat(m.statusActions(), []menuAction{
 		{"设置 Web 语言", func() (bool, error) {
 			lang, err := m.input("语言代码（以设备支持为准）", "zh_cn")
 			if err != nil {
@@ -187,7 +183,7 @@ func (m *deviceMenu) settingsActions() []menuAction {
 			fmt.Fprintln(m.out, "引导状态已设置。")
 			return false, nil
 		}},
-	}
+	}, m.backupActions(), m.firmwareActions(), m.maintenanceActions())
 }
 
 func (m *deviceMenu) backupActions() []menuAction {

@@ -101,7 +101,7 @@ func TestSubmenuNavigationAndQueryRecovery(t *testing.T) {
 		io.WriteString(w, `{"code":0,"data":`+data+`}`)
 	})
 	defer closeServer()
-	prompt := &scriptedPrompt{choices: []string{"设备概览", "主机名", "主机名", backMenu, "系统状态", "设备时间", backMenu, exitWizard}}
+	prompt := &scriptedPrompt{choices: []string{"设备概览", "主机名", "主机名", backMenu, "系统设置", "设备时间", backMenu, exitWizard}}
 	var out bytes.Buffer
 	if err := runDeviceMenu(context.Background(), c, "sid", prompt, &out); err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestMaintenanceCancellationAndSessionEnd(t *testing.T) {
 				io.WriteString(w, `{"code":0,"data":{"code":0}}`)
 			})
 			defer closeServer()
-			prompt := &scriptedPrompt{choices: []string{"设备维护", action, cancelAction, action, confirmAction}}
+			prompt := &scriptedPrompt{choices: []string{"系统设置", action, cancelAction, action, confirmAction}}
 			var out bytes.Buffer
 			if err := runDeviceMenu(context.Background(), c, "sid", prompt, &out); err != nil {
 				t.Fatal(err)
@@ -165,7 +165,7 @@ func TestBackupRecoveryRequiresExistingFileAndSendsQuery(t *testing.T) {
 		io.WriteString(w, `{"code":0,"data":{"code":0}}`)
 	})
 	defer closeServer()
-	prompt := &scriptedPrompt{choices: []string{"备份与恢复", "恢复设备备份", "启用 localMac 选项", confirmAction}}
+	prompt := &scriptedPrompt{choices: []string{"系统设置", "恢复设备备份", "启用 localMac 选项", confirmAction}}
 	var out bytes.Buffer
 	if err := runDeviceMenu(context.Background(), c, "sid", prompt, &out); err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func TestUpgradeUsesTypedFlagsAndEndsSession(t *testing.T) {
 		io.WriteString(w, `{"code":0,"data":{"code":0}}`)
 	})
 	defer closeServer()
-	prompt := &scriptedPrompt{choices: []string{"固件升级", "提交固件升级", "不保留配置", "本机", confirmAction}}
+	prompt := &scriptedPrompt{choices: []string{"系统设置", "提交固件升级", "不保留配置", "本机", confirmAction}}
 	var out bytes.Buffer
 	if err := runDeviceMenu(context.Background(), c, "sid", prompt, &out); err != nil {
 		t.Fatal(err)
@@ -220,7 +220,7 @@ func TestMissingBackupAndCleanupDoNotMutateDevice(t *testing.T) {
 		}
 	})
 	defer closeServer()
-	prompt := &scriptedPrompt{choices: []string{"备份与恢复", "恢复设备备份", backMenu, "设备维护", "执行升级清理脚本", backMenu, exitWizard}}
+	prompt := &scriptedPrompt{choices: []string{"系统设置", "恢复设备备份", "执行升级清理脚本", backMenu, exitWizard}}
 	var out bytes.Buffer
 	if err := runDeviceMenu(context.Background(), c, "sid", prompt, &out); err != nil {
 		t.Fatal(err)

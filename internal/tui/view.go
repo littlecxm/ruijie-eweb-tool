@@ -25,7 +25,8 @@ type layout struct {
 }
 
 func (m *model) layout() layout {
-	bodyH := max(8, m.height-6)
+	// Leave one empty row above the two footer rows.
+	bodyH := max(8, m.height-3)
 	if m.confirming() || m.height < 22 {
 		if m.resultsFocused && !m.confirming() {
 			return layout{resultW: m.width, resultH: bodyH}
@@ -43,7 +44,8 @@ func (m *model) layout() layout {
 func (m *model) resize() {
 	l := m.layout()
 	m.help.SetWidth(max(1, m.width-statusTheme.Help.GetHorizontalPadding()))
-	m.results.SetWidth(max(1, l.resultW-4))
+	// Reserve a gutter and one column for the vertical scrollbar.
+	m.results.SetWidth(max(1, l.resultW-6))
 	m.results.SetHeight(max(1, l.resultH-4))
 	m.refreshResults()
 	inputWidth := l.navW
@@ -59,8 +61,6 @@ func (m *model) View() tea.View {
 	if m.width < 40 || m.height < 18 {
 		content = "请扩大终端至至少 40×18\n" + m.help.ShortHelpView([]key.Binding{m.keys.Interrupt})
 	} else {
-		header := lipgloss.NewStyle().Bold(true).Foreground(accent).Render(clip(m.title, m.width)) + "\n"
-		// header += "\n" + lipgloss.NewStyle().Foreground(muted).Render(clip(m.subtitle, m.width)) + "\n\n"
 		l := m.layout()
 		nav := ""
 		if l.navW > 0 {
@@ -68,22 +68,17 @@ func (m *model) View() tea.View {
 		}
 		body := nav
 		if l.resultW > 0 {
-			resultTitle := fmt.Sprintf("%.0f%%", m.results.ScrollPercent()*100)
-			result := m.results.View()
-			if m.history == "" {
-				result = lipgloss.NewStyle().Foreground(muted).Render("操作结果会显示在这里。\nTab 切换到结果，方向键滚动。")
-			}
-			results := m.pane(resultTitle, result, l.resultW, l.resultH, m.resultsFocused)
+			results := m.pane("结果", m.resultsView(), l.resultW, l.resultH, m.resultsFocused)
 			if l.navW == 0 {
 				body = results
 			} else if l.sideBySide {
 				body = lipgloss.JoinHorizontal(lipgloss.Top, nav, " ", results)
 			} else {
-				body = nav + "\n" + results
+				body = nav + "\n\n" + results
 			}
 		}
-		footer := "\n" + statusTheme.Help.Width(m.width).Render(m.help.ShortHelpView(m.helpBindings())) + "\n" + m.statusView()
-		content = header + body + footer
+		footer := statusTheme.Help.Width(m.width).Render(m.help.ShortHelpView(m.helpBindings())) + "\n" + m.statusView()
+		content = body + "\n\n" + footer
 	}
 	v := tea.NewView(fit(content, m.width, m.height))
 	v.AltScreen = true
@@ -106,6 +101,30 @@ func (m *model) pane(title, content string, width, height int, focused bool) str
 	heading := lipgloss.NewStyle().Bold(true).Foreground(color).Render(clip(title, innerW))
 	inside := heading + "\n\n" + fit(content, innerW, max(1, height-4))
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color).Padding(0, 1).Width(width).Height(height).Render(inside)
+}
+
+func (m *model) resultsView() string {
+	width, height := m.results.Width(), m.results.Height()
+	if m.history == "" {
+		return lipgloss.NewStyle().Foreground(muted).Width(width).Render("操作结果会显示在这里。\nTab 切换到结果，方向键滚动。")
+	}
+	content := m.results.View()
+	total := m.results.TotalLineCount()
+	if total <= height {
+		return content
+	}
+	thumbHeight := max(1, height*height/total)
+	thumbTop := int(m.results.ScrollPercent()*float64(height-thumbHeight) + 0.5)
+	track := lipgloss.NewStyle().Foreground(border).Render("│")
+	thumb := lipgloss.NewStyle().Foreground(accent).Render("┃")
+	bar := make([]string, height)
+	for i := range bar {
+		bar[i] = track
+		if i >= thumbTop && i < thumbTop+thumbHeight {
+			bar[i] = thumb
+		}
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, content, " ", strings.Join(bar, "\n"))
 }
 
 func (m *model) navigation(width, height int) string {
