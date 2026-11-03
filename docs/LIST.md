@@ -106,24 +106,6 @@ HTTP POST Form Data
 | ------------ | ----------- | ------ |
 | api/download | techSupport | nil    |
 
-## 系统管理 `stepsystool`
-
-### 登录管理 `stepsystool_pass_session`
-
-URL: /admin/alone/systool/systool_pass_session
-
-| API        | Method         | Module |
-| ---------- | -------------- | ------ |
-| api/system | getSessiontime | nil    |
-
-### 系统升级 `stepsystool_upgrade`
-
-URL: /admin/alone/systool/systool_upgrade
-
-| API        | Method     | Module |
-| ---------- | ---------- | ------ |
-| api/system | getVersion | nil    |
-
 #### 本地升级 `stepsystool_upgrade_tab-1`
 
 URL: /admin/alone/systool/systool_upgrade?tab=1
