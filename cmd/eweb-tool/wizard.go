@@ -12,7 +12,6 @@ import (
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/client"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/config"
 	moduleauth "github.com/littlecxm/ruijie-eweb-tool/pkg/eweb-module/auth"
-	"github.com/pterm/pterm"
 )
 
 const defaultEndpoint = "https://192.168.110.1"
@@ -28,20 +27,6 @@ type prompter interface {
 	Select(label string, options []string) (string, error)
 	Input(label, defaultValue string) (string, error)
 	Password(label string) (string, error)
-}
-
-type terminalPrompt struct{}
-
-func (terminalPrompt) Select(label string, options []string) (string, error) {
-	return pterm.DefaultInteractiveSelect.WithOptions(options).Show(label)
-}
-
-func (terminalPrompt) Input(label, defaultValue string) (string, error) {
-	return pterm.DefaultInteractiveTextInput.WithDefaultValue(defaultValue).Show(label)
-}
-
-func (terminalPrompt) Password(label string) (string, error) {
-	return pterm.DefaultInteractiveTextInput.WithMask("*").Show(label)
 }
 
 type loginFunc func(context.Context, *client.Client, string) (*moduleauth.LoginResult, error)

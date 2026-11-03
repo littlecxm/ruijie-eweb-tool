@@ -10,11 +10,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/client"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/eweb-module/devSta"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/eweb-module/overview"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/eweb-module/system"
-	"github.com/pterm/pterm"
 )
 
 const (
@@ -84,6 +84,9 @@ func (m *deviceMenu) loop(title, leave string, actions []menuAction) (bool, erro
 		if err != nil {
 			if m.ctx.Err() != nil {
 				return false, m.ctx.Err()
+			}
+			if errors.Is(err, tui.ErrCanceled) {
+				continue
 			}
 			var interaction interactionError
 			if errors.As(err, &interaction) {
@@ -309,7 +312,7 @@ func (m *deviceMenu) cleanup() (bool, error) {
 }
 
 func (m *deviceMenu) printResult(label string, value any) error {
-	rows := pterm.TableData{{"项目", "值"}}
+	rows := [][]string{{"项目", "值"}}
 	switch v := value.(type) {
 	case *overview.DeviceInfo:
 		rows = append(rows, []string{"设备时间", v.LocalTime}, []string{"运行时间", fmt.Sprintf("%g 秒", v.Uptime)},
@@ -354,7 +357,7 @@ func (m *deviceMenu) printResult(label string, value any) error {
 	default:
 		return m.printJSON(label, value)
 	}
-	return pterm.DefaultTable.WithWriter(m.out).WithHasHeader().WithData(rows).Render()
+	return tui.WriteTable(m.out, rows)
 }
 
 func (m *deviceMenu) printJSON(label string, value any) error {

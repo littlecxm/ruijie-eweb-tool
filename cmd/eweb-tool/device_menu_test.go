@@ -14,8 +14,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/client"
 )
+
+type canceledInputPrompt struct{ scriptedPrompt }
+
+func (*canceledInputPrompt) Input(string, string) (string, error) { return "", tui.ErrCanceled }
+
+func TestCanceledSettingReturnsToSubmenuWithoutRequest(t *testing.T) {
+	c, _ := client.New("http://device")
+	defer c.CloseIdleConnections()
+	prompt := &canceledInputPrompt{scriptedPrompt{choices: []string{"系统设置", "设置 Web 语言", backMenu, exitWizard}}}
+	if err := runDeviceMenu(context.Background(), c, "sid", prompt, io.Discard); err != nil || len(prompt.choices) != 0 {
+		t.Fatalf("cancel setting: %v, choices=%v", err, prompt.choices)
+	}
+}
 
 type scriptedPrompt struct {
 	choices       []string

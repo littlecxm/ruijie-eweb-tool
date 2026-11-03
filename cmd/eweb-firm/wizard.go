@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 
+	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/firm"
-	"github.com/pterm/pterm"
 )
 
 const (
@@ -21,18 +23,15 @@ type prompter interface {
 	Input(label, defaultValue string) (string, error)
 }
 
-type terminalPrompt struct{}
-
-func (terminalPrompt) Select(label string, options []string) (string, error) {
-	return pterm.DefaultInteractiveSelect.WithOptions(options).Show(label)
-}
-
-func (terminalPrompt) Input(label, defaultValue string) (string, error) {
-	return pterm.DefaultInteractiveTextInput.WithDefaultValue(defaultValue).Show(label)
-}
-
 func runWizard(prompt prompter, out io.Writer) error {
+	return runWizardContext(context.Background(), prompt, out)
+}
+
+func runWizardContext(ctx context.Context, prompt prompter, out io.Writer) error {
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		choice, err := prompt.Select("选择操作", []string{decryptFirmware, encryptFirmwareV1, encryptFirmwareV2, exitWizard})
 		if err != nil {
 			return err
@@ -49,6 +48,9 @@ func runWizard(prompt prompter, out io.Writer) error {
 		}
 		path, err := prompt.Input("文件路径 (可拖入或粘贴)", "")
 		if err != nil {
+			if errors.Is(err, tui.ErrCanceled) {
+				continue
+			}
 			return err
 		}
 		path = strings.TrimSpace(path)
@@ -56,11 +58,15 @@ func runWizard(prompt prompter, out io.Writer) error {
 			path = path[1 : len(path)-1]
 		}
 		if path == "" {
-			pterm.Error.WithWriter(out).Println("输入文件路径不能为空")
+			fmt.Fprintln(out, "错误: 输入文件路径不能为空")
 			continue
 		}
-		if err := processFile(path, "", choice != decryptFirmware, format, nil, out); err != nil {
-			pterm.Error.WithWriter(out).Println(err)
+		fmt.Fprintln(out, "正在处理固件…")
+		if err := processFileContext(ctx, path, "", choice != decryptFirmware, format, nil, out); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			fmt.Fprintln(out, "错误:", err)
 		}
 	}
 }

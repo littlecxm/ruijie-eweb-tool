@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/config"
 	moduleauth "github.com/littlecxm/ruijie-eweb-tool/pkg/eweb-module/auth"
-	"github.com/pterm/pterm"
 	"golang.org/x/term"
 )
 
@@ -44,12 +44,10 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	if cfg.App.Debug {
-		pterm.EnableDebugMessages()
-	}
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return errors.New("登录向导需要交互终端，请直接在终端运行 eweb-tool")
 	}
-	pterm.DefaultHeader.WithFullWidth().Println("Ruijie Eweb Tool")
-	return runWizard(ctx, cfg, *configPath, *verifyTLS, terminalPrompt{}, moduleauth.Login, os.Stdout)
+	return tui.Run(ctx, "eweb-tool", os.Stdout, func(ctx context.Context, ui *tui.UI) error {
+		return runWizard(ctx, cfg, *configPath, *verifyTLS, ui, moduleauth.Login, ui)
+	})
 }

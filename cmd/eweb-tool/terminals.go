@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/eweb-module/devSta"
-	"github.com/pterm/pterm"
 )
 
 const listTerminals = "列出在线终端"
@@ -17,7 +17,7 @@ func printTerminals(out io.Writer, users *devSta.UserList) error {
 		fmt.Fprintln(out, "暂无在线终端。")
 		return nil
 	}
-	rows := pterm.TableData{{"名称", "IP", "MAC", "接入方式", "接入设备", "SSID", "频段", "端口"}}
+	rows := [][]string{{"名称", "IP", "MAC", "接入方式", "接入设备", "SSID", "频段", "端口"}}
 	for _, terminal := range users.List {
 		connection := terminal.ConnectType
 		switch connection {
@@ -33,7 +33,7 @@ func printTerminals(out io.Writer, users *devSta.UserList) error {
 			terminalText(terminal.SSID), terminalText(terminal.Band), terminalText(string(terminal.Port)),
 		})
 	}
-	return pterm.DefaultTable.WithWriter(out).WithHasHeader().WithData(rows).Render()
+	return tui.WriteTable(out, rows)
 }
 
 func terminalText(values ...string) string {

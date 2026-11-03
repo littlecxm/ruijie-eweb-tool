@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
 	"github.com/littlecxm/ruijie-eweb-tool/pkg/firm"
-	"github.com/pterm/pterm"
 	"golang.org/x/term"
 )
 
@@ -16,7 +19,7 @@ const usage = `Ruijie Eweb Firmware Tool — v1/v2
   eweb-firm dec <file> [-out <output>]
   eweb-firm enc <file> [--format v1|v2] [-out <output>] [--salt <hex>]
 
-无参数启动 pterm 交互菜单。解密自动识别 v1/v2；加密默认 v1。
+无参数启动全屏 TUI。解密自动识别 v1/v2；加密默认 v1。
 默认输出追加 .decrypted / .encrypted；已有文件不会覆盖。
 -o 和 --out 是 -out 的别名。
 --salt 接受 16 个十六进制字符，仅适用于 v2 加密；通常省略以使用随机 Salt。
@@ -24,7 +27,7 @@ const usage = `Ruijie Eweb Firmware Tool — v1/v2
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
-		pterm.Error.WithWriter(os.Stderr).Println(err)
+		fmt.Fprintln(os.Stderr, "错误:", err)
 		os.Exit(1)
 	}
 }
@@ -36,8 +39,11 @@ func run(args []string, out io.Writer) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return errors.New("交互菜单需要终端，请直接运行 eweb-firm，或使用 enc/dec 子命令；用法见 --help")
 	}
-	pterm.DefaultHeader.WithFullWidth().WithWriter(out).Println("Ruijie Eweb Firmware Tool")
-	return runWizard(terminalPrompt{}, out)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	return tui.Run(ctx, "eweb-firm", out, func(ctx context.Context, ui *tui.UI) error {
+		return runWizardContext(ctx, ui, ui)
+	})
 }
 
 // Validate the entire input before creating output. O_EXCL also prevents
@@ -71,9 +77,19 @@ func writeNewFile(path string, data []byte) (err error) {
 }
 
 func processFile(input, output string, encrypt bool, format firm.FirmwareFormat, salt *[8]byte, out io.Writer) error {
+	return processFileContext(context.Background(), input, output, encrypt, format, salt, out)
+}
+
+func processFileContext(ctx context.Context, input, output string, encrypt bool, format firm.FirmwareFormat, salt *[8]byte, out io.Writer) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	data, err := os.ReadFile(input)
 	if err != nil {
 		return fmt.Errorf("读取输入文件: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	var result []byte
 	if encrypt {
@@ -91,6 +107,9 @@ func processFile(input, output string, encrypt bool, format firm.FirmwareFormat,
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if output == "" {
 		if encrypt {
 			output = input + ".encrypted"
@@ -105,7 +124,7 @@ func processFile(input, output string, encrypt bool, format firm.FirmwareFormat,
 	if encrypt {
 		action = "加密"
 	}
-	pterm.Success.WithWriter(out).Printfln("%s成功 (%s): %s [%d bytes]", action, format, output, len(result))
+	fmt.Fprintf(out, "%s成功 (%s): %s [%d bytes]\n", action, format, output, len(result))
 	return nil
 }
 

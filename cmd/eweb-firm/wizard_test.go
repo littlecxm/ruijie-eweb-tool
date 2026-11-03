@@ -2,10 +2,35 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/littlecxm/ruijie-eweb-tool/internal/tui"
+	"github.com/littlecxm/ruijie-eweb-tool/pkg/firm"
 )
+
+func TestWizardCanceledPathReturnsToMenu(t *testing.T) {
+	prompt := &fakePrompt{choices: []string{encryptFirmwareV1, exitWizard}, inputErr: tui.ErrCanceled}
+	if err := runWizard(prompt, &bytes.Buffer{}); err != nil || len(prompt.choices) != 0 {
+		t.Fatalf("cancel path: %v, choices=%v", err, prompt.choices)
+	}
+}
+
+func TestCanceledFirmwareTaskCreatesNoOutput(t *testing.T) {
+	input := writeInput(t, "firmware", []byte("firmware"))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := processFileContext(ctx, input, "", true, firm.FormatV1, nil, &bytes.Buffer{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancellation=%v", err)
+	}
+	if _, err := os.Stat(input + ".encrypted"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("canceled task wrote output: %v", err)
+	}
+}
 
 type fakePrompt struct {
 	choices   []string
