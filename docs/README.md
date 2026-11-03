@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | `overview` | [设备概览](overview.md) | `pkg/eweb-module/overview` | 全部 4 个公开方法 |
 | `system` | [系统管理](system.md) | `pkg/eweb-module/system` | 全部 16 个公开方法 |
-| `cmd / devSta` | [在线终端](devSta/user-list.md) | `pkg/eweb-module/devSta` | `devSta.get / user_list` |
+| `cmd / devSta` | [在线终端](devSta/user-list.md)、[开发者模式](devSta/develop-mode.md) | `pkg/eweb-module/devSta` | `devSta.get / user_list`、`devSta.get/set / develop_mode` |
 
 [模块与页面清单](LIST.md) 同时包含已实现和待实现的接口，不能仅凭列入清单判断实现状态。
 

@@ -11,7 +11,7 @@ type DevStaReq struct {
 	NoParse  bool   `json:"noParse"`
 	Async    any    `json:"async"`
 	RemoteIP bool   `json:"remoteIp"`
-	Data     any    `json:"data"`
+	Data     any    `json:"data,omitempty"`
 	Device   string `json:"device"`
 }
 
