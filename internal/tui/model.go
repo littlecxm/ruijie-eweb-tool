@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -34,6 +35,9 @@ type model struct {
 	results         viewport.Model
 	spinner         spinner.Model
 	history         string
+	dividers        []resultDivider
+	commandStarted  time.Time
+	commandOutput   bool
 	lastChoice      string
 	done            bool
 	err             error
@@ -82,6 +86,7 @@ func (m *model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.resize()
 		return m, nil
 	case promptMsg:
+		m.finishCommand()
 		m.request = &msg
 		m.selected = 0
 		m.resultsFocused = false
@@ -103,6 +108,9 @@ func (m *model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.input.Blur()
 		return m, nil
 	case outputMsg:
+		if m.commandStarted.IsZero() {
+			m.commandStarted = time.Now()
+		}
 		m.appendOutput(string(msg))
 		return m, nil
 	case finishedMsg:
@@ -116,6 +124,7 @@ func (m *model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.appendOutput("\n错误：" + msg.err.Error() + "\n")
 		}
+		m.finishCommand()
 		m.resize()
 		return m, nil
 	case tea.KeyPressMsg:
@@ -148,6 +157,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if key.Matches(msg, m.keys.ClearHistory) {
 		m.history = ""
+		m.dividers = nil
+		m.commandOutput = false
 		m.results.SetContent("")
 		m.results.SetXOffset(0)
 		return m, nil
@@ -238,7 +249,6 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if len(m.matches) > 0 {
 			choice := m.request.options[m.matches[m.selected]]
 			m.lastChoice = choice
-			m.appendOutput("\n› " + m.request.label + " · " + choice + "\n")
 			m.respond(answer{value: choice})
 		}
 	case key.Matches(msg, m.keys.Back):
@@ -255,6 +265,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) respond(response answer) {
+	if response.err == nil {
+		m.commandStarted = time.Now()
+	}
 	m.request.reply <- response
 	m.request = nil
 	m.input.Reset()
@@ -293,8 +306,13 @@ func (m *model) refilter() {
 
 func (m *model) appendOutput(text string) {
 	atBottom := m.results.AtBottom()
-	m.history += safeText(text)
+	text = safeText(text)
+	if strings.TrimSpace(text) != "" && !m.commandStarted.IsZero() {
+		m.commandOutput = true
+	}
+	m.history += text
 	if len(m.history) > historyLimit {
+		previousLen := len(m.history)
 		start := len(m.history) - historyLimit
 		if next := strings.IndexByte(m.history[start:], '\n'); next >= 0 {
 			m.history = m.history[start+next+1:]
@@ -304,8 +322,18 @@ func (m *model) appendOutput(text string) {
 			}
 			m.history = m.history[start:]
 		}
+		removed := previousLen - len(m.history)
+		kept := m.dividers[:0]
+		for _, divider := range m.dividers {
+			if divider.start >= removed {
+				divider.start -= removed
+				divider.end -= removed
+				kept = append(kept, divider)
+			}
+		}
+		m.dividers = kept
 	}
-	m.results.SetContent(m.history)
+	m.refreshResults()
 	if atBottom {
 		m.results.GotoBottom()
 	}

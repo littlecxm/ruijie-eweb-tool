@@ -45,6 +45,7 @@ func (m *model) resize() {
 	m.help.SetWidth(max(1, m.width-statusTheme.Help.GetHorizontalPadding()))
 	m.results.SetWidth(max(1, l.resultW-4))
 	m.results.SetHeight(max(1, l.resultH-4))
+	m.refreshResults()
 	inputWidth := l.navW
 	if inputWidth == 0 {
 		inputWidth = m.width
@@ -58,8 +59,8 @@ func (m *model) View() tea.View {
 	if m.width < 40 || m.height < 18 {
 		content = "请扩大终端至至少 40×18\n" + m.help.ShortHelpView([]key.Binding{m.keys.Interrupt})
 	} else {
-		header := lipgloss.NewStyle().Bold(true).Foreground(accent).Render(clip(m.title, m.width))
-		header += "\n" + lipgloss.NewStyle().Foreground(muted).Render(clip(m.subtitle, m.width)) + "\n\n"
+		header := lipgloss.NewStyle().Bold(true).Foreground(accent).Render(clip(m.title, m.width)) + "\n"
+		// header += "\n" + lipgloss.NewStyle().Foreground(muted).Render(clip(m.subtitle, m.width)) + "\n\n"
 		l := m.layout()
 		nav := ""
 		if l.navW > 0 {
@@ -81,7 +82,7 @@ func (m *model) View() tea.View {
 				body = nav + "\n" + results
 			}
 		}
-		footer := "\n" + statusTheme.Help.Width(m.width).Render(m.help.ShortHelpView(m.helpBindings())) + "\n" + m.statusView() + "\n"
+		footer := "\n" + statusTheme.Help.Width(m.width).Render(m.help.ShortHelpView(m.helpBindings())) + "\n" + m.statusView()
 		content = header + body + footer
 	}
 	v := tea.NewView(fit(content, m.width, m.height))
