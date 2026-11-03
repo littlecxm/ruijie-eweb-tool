@@ -17,10 +17,8 @@ import (
 const defaultEndpoint = "https://192.168.110.1"
 
 const (
-	newDevice        = "新增设备"
-	exitWizard       = "退出"
-	useSavedPassword = "使用已保存密码"
-	enterPassword    = "输入新密码"
+	newDevice  = "新增设备"
+	exitWizard = "退出"
 )
 
 type prompter interface {
@@ -67,20 +65,10 @@ func runWizard(ctx context.Context, cfg *config.Config, path string, verifyTLS b
 		}
 		stored := cfg.Device[selectedSN]
 		endpoint = stored.Endpoint
-		mode, err := prompt.Select("设备密码", []string{useSavedPassword, enterPassword})
-		if err != nil {
-			return err
-		}
-		switch mode {
-		case useSavedPassword:
-			password, err = passwordauth.DecryptAuthKey(stored.Password, passwordauth.StoragePassphrase)
-			needsPassword = err != nil || password == ""
-			if needsPassword {
-				fmt.Fprintln(out, "已保存的密码是旧格式或密文无效，请重新输入。")
-			}
-		case enterPassword:
-		default:
-			return errors.New("无效的密码选择")
+		password, err = passwordauth.DecryptAuthKey(stored.Password, passwordauth.StoragePassphrase)
+		needsPassword = err != nil || password == ""
+		if needsPassword {
+			fmt.Fprintln(out, "已保存的密码是旧格式或密文无效，请重新输入。")
 		}
 	}
 	c, err := client.New(endpoint, client.WithTLSVerification(verifyTLS))
@@ -88,19 +76,34 @@ func runWizard(ctx context.Context, cfg *config.Config, path string, verifyTLS b
 		return err
 	}
 	defer c.CloseIdleConnections()
-	if needsPassword {
-		password, err = prompt.Password("输入设备密码")
-		if err != nil {
+	var result *moduleauth.LoginResult
+	for {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	fmt.Fprintln(out, "正在登录并获取设备信息…")
-	result, err := login(ctx, c, password)
-	if err != nil {
-		return err
+		if needsPassword {
+			password, err = prompt.Password("输入设备密码")
+			if err != nil {
+				return err
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "正在登录并获取设备信息…")
+		result, err = login(ctx, c, password)
+		if err == nil {
+			break
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		var locked *moduleauth.LoginLockedError
+		if needsPassword || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &locked) {
+			return err
+		}
+		fmt.Fprintf(out, "使用已保存密码登录失败：%v\n请重新输入设备密码。\n", err)
+		needsPassword = true
 	}
 	if err := saveLogin(cfg, path, selectedSN, c.Endpoint(), password, result); err != nil {
 		return err

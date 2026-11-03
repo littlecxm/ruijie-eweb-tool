@@ -47,10 +47,10 @@ func TestRunBridgesWorkflowAndPreservesError(t *testing.T) {
 				if value.kind == passwordPrompt {
 					m.ui.send(tea.PasteMsg{Content: secret})
 				}
-				m.ui.send(key(tea.KeyEnter))
+				m.ui.send(pressKey(tea.KeyEnter))
 			}()
 		case finishedMsg:
-			go m.ui.send(key(tea.KeyEnter))
+			go m.ui.send(pressKey(tea.KeyEnter))
 		}
 		return msg
 	}))
@@ -91,7 +91,7 @@ func TestRunExitAndCanceledParent(t *testing.T) {
 		return err
 	}, tea.WithWindowSize(110, 32), tea.WithInput(nil), tea.WithoutRenderer(), tea.WithoutSignalHandler(), tea.WithFilter(func(state tea.Model, msg tea.Msg) tea.Msg {
 		if _, ok := msg.(promptMsg); ok {
-			go state.(*model).ui.send(key(tea.KeyEnter))
+			go state.(*model).ui.send(pressKey(tea.KeyEnter))
 		}
 		return msg
 	}))

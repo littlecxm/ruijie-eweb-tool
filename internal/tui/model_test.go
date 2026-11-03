@@ -21,7 +21,7 @@ func testModel(t *testing.T) *model {
 	return m
 }
 
-func key(code rune) tea.KeyPressMsg       { return tea.KeyPressMsg{Code: code} }
+func pressKey(code rune) tea.KeyPressMsg  { return tea.KeyPressMsg{Code: code} }
 func textKey(text string) tea.KeyPressMsg { return tea.KeyPressMsg{Code: []rune(text)[0], Text: text} }
 
 func installPrompt(m *model, kind promptKind, label string, options ...string) chan answer {
@@ -38,14 +38,14 @@ func TestMenuFilterNavigationAndEscape(t *testing.T) {
 	if len(m.matches) != 1 || m.request.options[m.matches[0]] != "系统状态" {
 		t.Fatalf("filtered options=%v", m.matches)
 	}
-	m.Update(key(tea.KeyEnter))
+	m.Update(pressKey(tea.KeyEnter))
 	if got := <-reply; got.value != "系统状态" || got.err != nil {
 		t.Fatalf("answer=%+v", got)
 	}
 	if m.request != nil {
 		t.Fatal("duplicate submit remains possible")
 	}
-	m.Update(key(tea.KeyEnter))
+	m.Update(pressKey(tea.KeyEnter))
 	if len(reply) != 0 {
 		t.Fatal("submitted twice")
 	}
@@ -53,15 +53,15 @@ func TestMenuFilterNavigationAndEscape(t *testing.T) {
 	reply = installPrompt(m, selectPrompt, "系统状态", "当前版本", "设备时间", "返回上级菜单")
 	m.Update(textKey("/"))
 	m.Update(tea.PasteMsg{Content: "不存在"})
-	m.Update(key(tea.KeyEnter))
+	m.Update(pressKey(tea.KeyEnter))
 	if len(reply) != 0 {
 		t.Fatal("empty filter activated an option")
 	}
-	m.Update(key(tea.KeyEscape))
+	m.Update(pressKey(tea.KeyEscape))
 	if len(m.matches) != 3 || m.searching {
 		t.Fatal("escape did not clear search")
 	}
-	m.Update(key(tea.KeyEscape))
+	m.Update(pressKey(tea.KeyEscape))
 	if got := <-reply; got.value != "返回上级菜单" {
 		t.Fatalf("back=%+v", got)
 	}
@@ -76,7 +76,7 @@ func TestPasswordMaskAndInputCancellation(t *testing.T) {
 	if strings.Contains(view, secret) || !strings.Contains(view, "••") || m.input.Value() != secret {
 		t.Fatalf("password not masked: %s", view)
 	}
-	m.Update(key(tea.KeyEnter))
+	m.Update(pressKey(tea.KeyEnter))
 	if got := <-reply; got.value != secret {
 		t.Fatalf("password changed: %+v", got)
 	}
@@ -88,7 +88,7 @@ func TestPasswordMaskAndInputCancellation(t *testing.T) {
 	if m.ui.interrupted.Load() || m.input.Value() != "q" {
 		t.Fatal("q in text input quit the program")
 	}
-	m.Update(key(tea.KeyEscape))
+	m.Update(pressKey(tea.KeyEscape))
 	if got := <-reply; got.err != ErrCanceled {
 		t.Fatalf("input cancel=%+v", got)
 	}
@@ -101,13 +101,13 @@ func TestConfirmationDefaultsToCancelAndCannotBeFiltered(t *testing.T) {
 	if m.searching {
 		t.Fatal("confirmation can be filtered to destructive option")
 	}
-	m.Update(key(tea.KeyEnter))
+	m.Update(pressKey(tea.KeyEnter))
 	if got := <-reply; got.value != "取消" {
 		t.Fatalf("default confirmation=%+v", got)
 	}
 	reply = installPrompt(m, selectPrompt, "是否继续？", "取消", "确认执行")
-	m.Update(key(tea.KeyDown))
-	m.Update(key(tea.KeyEnter))
+	m.Update(pressKey(tea.KeyDown))
+	m.Update(pressKey(tea.KeyEnter))
 	if got := <-reply; got.value != "确认执行" {
 		t.Fatalf("explicit confirmation=%+v", got)
 	}
@@ -165,11 +165,11 @@ func TestShortTerminalKeepsInputAndResultsAccessible(t *testing.T) {
 		t.Fatal("input hidden in short terminal")
 	}
 	m.appendOutput("查询结果")
-	m.Update(key(tea.KeyTab))
+	m.Update(pressKey(tea.KeyTab))
 	if !strings.Contains(m.View().Content, "查询结果") {
 		t.Fatal("results inaccessible in short terminal")
 	}
-	m.Update(key(tea.KeyTab))
+	m.Update(pressKey(tea.KeyTab))
 	if !strings.Contains(m.View().Content, "https://device") {
 		t.Fatal("Tab did not restore input")
 	}
@@ -181,13 +181,13 @@ func TestResultScrollingAndBoundedSafeHistory(t *testing.T) {
 	installPrompt(m, selectPrompt, "选择操作", "设备概览", "退出")
 	m.appendOutput(strings.Repeat(strings.Repeat("终端", 100)+"\n", 100))
 	m.results.GotoTop()
-	m.Update(key(tea.KeyTab))
-	m.Update(key(tea.KeyPgDown))
-	m.Update(key(tea.KeyRight))
+	m.Update(pressKey(tea.KeyTab))
+	m.Update(pressKey(tea.KeyPgDown))
+	m.Update(pressKey(tea.KeyRight))
 	if m.results.YOffset() == 0 || m.results.XOffset() == 0 {
 		t.Fatal("results cannot scroll in both directions")
 	}
-	m.Update(key(tea.KeyTab))
+	m.Update(pressKey(tea.KeyTab))
 	if m.resultsFocused {
 		t.Fatal("Tab did not return focus to menu")
 	}
@@ -198,5 +198,114 @@ func TestResultScrollingAndBoundedSafeHistory(t *testing.T) {
 	m.appendOutput(strings.Repeat("汉字🙂", historyLimit))
 	if len(m.history) > historyLimit || !utf8.ValidString(m.history) {
 		t.Fatal("history limit broke Unicode or memory bound")
+	}
+}
+
+func TestHelpReflectsAvailableActions(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		setup func(*model)
+		want  []string
+		omit  []string
+	}{
+		{
+			name: "menu",
+			setup: func(m *model) {
+				installPrompt(m, selectPrompt, "选择操作", "设备概览", "退出")
+			},
+			want: []string{"↑↓/jk 选择", "enter 确认", "/ 搜索", "esc/← 返回", "tab 查看结果", "q 退出"},
+			omit: []string{"清除搜索", "ctrl+u"},
+		},
+		{
+			name: "search",
+			setup: func(m *model) {
+				installPrompt(m, selectPrompt, "选择操作", "设备概览", "退出")
+				m.Update(textKey("/"))
+			},
+			want: []string{"↑↓ 选择", "enter 确认", "esc 清除搜索", "ctrl+c 退出"},
+			omit: []string{"↑↓/jk", "q 退出", "/ 搜索"},
+		},
+		{
+			name: "password",
+			setup: func(m *model) {
+				installPrompt(m, passwordPrompt, "输入设备密码")
+			},
+			want: []string{"enter 提交", "esc 取消", "ctrl+u 清空", "tab 查看结果", "ctrl+c 退出"},
+			omit: []string{"q 退出", "/ 搜索"},
+		},
+		{
+			name: "confirmation",
+			setup: func(m *model) {
+				installPrompt(m, selectPrompt, "是否继续？", "取消", "确认执行")
+			},
+			want: []string{"↑↓/jk 选择", "enter 确认", "esc 取消"},
+			omit: []string{"tab", "/ 搜索"},
+		},
+		{
+			name: "results",
+			setup: func(m *model) {
+				installPrompt(m, selectPrompt, "选择操作", "设备概览", "退出")
+				m.Update(pressKey(tea.KeyTab))
+			},
+			want: []string{"↑↓/jk 滚动", "←→/hl 横移", "pgup/pgdn 翻页", "tab 返回操作"},
+			omit: []string{"enter 确认", "/ 搜索"},
+		},
+		{
+			name:  "busy",
+			setup: func(*model) {},
+			want:  []string{"tab 查看结果", "ctrl+l 清空历史", "q 退出"},
+			omit:  []string{"enter 确认", "/ 搜索", "↑↓/jk 选择"},
+		},
+		{
+			name: "done",
+			setup: func(m *model) {
+				m.Update(finishedMsg{})
+			},
+			want: []string{"↑↓/jk 滚动", "enter/esc/q 退出"},
+			omit: []string{"tab", "/ 搜索"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := testModel(t)
+			tt.setup(m)
+			help := ansi.Strip(m.help.ShortHelpView(m.helpBindings()))
+			if !strings.Contains(help, " • ") || !strings.Contains(ansi.Strip(m.View().Content), help) {
+				t.Fatalf("help was not rendered in the footer: %q", help)
+			}
+			for _, text := range tt.want {
+				if !strings.Contains(help, text) {
+					t.Errorf("missing %q from help %q", text, help)
+				}
+			}
+			for _, text := range tt.omit {
+				if strings.Contains(help, text) {
+					t.Errorf("unavailable action %q in help %q", text, help)
+				}
+			}
+		})
+	}
+}
+
+func TestKeyBindingDrivesBothHelpAndInteraction(t *testing.T) {
+	m := testModel(t)
+	installPrompt(m, selectPrompt, "选择操作", "jkq", "other", "退出")
+	m.keys.Search.SetKeys("ctrl+f")
+	m.keys.Search.SetHelp("ctrl+f", "搜索")
+	if !strings.Contains(ansi.Strip(m.View().Content), "ctrl+f 搜索") {
+		t.Fatal("help did not use the updated binding")
+	}
+	m.Update(textKey("/"))
+	if m.searching {
+		t.Fatal("old search binding is still active")
+	}
+	m.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
+	if !m.searching {
+		t.Fatal("new search binding is not active")
+	}
+	for _, text := range []string{"j", "k", "q"} {
+		m.Update(textKey(text))
+	}
+	if m.filter.Value() != "jkq" || len(m.matches) != 1 || m.ui.interrupted.Load() {
+		t.Fatal("search consumed text as navigation or quit keys")
 	}
 }

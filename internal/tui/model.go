@@ -7,6 +7,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -21,6 +23,8 @@ type model struct {
 	ui              *UI
 	title, subtitle string
 	width, height   int
+	keys            keyMap
+	help            help.Model
 	request         *promptMsg
 	input, filter   textinput.Model
 	searching       bool
@@ -48,8 +52,14 @@ func newModel(title string, ui *UI) *model {
 	results := viewport.New()
 	results.SoftWrap = false
 	results.SetHorizontalStep(8)
+	helpView := help.New()
+	helpView.Styles.ShortKey = lipgloss.NewStyle().Foreground(accent).Bold(true)
+	helpView.Styles.ShortDesc = lipgloss.NewStyle().Foreground(muted)
+	helpView.Styles.ShortSeparator = lipgloss.NewStyle().Foreground(border)
+	helpView.Styles.Ellipsis = lipgloss.NewStyle().Foreground(muted)
 	m := &model{
 		ui: ui, title: title, width: 110, height: 16,
+		keys: defaultKeyMap(), help: helpView,
 		input: input, filter: filter, results: results,
 		spinner: spinner.New(spinner.WithSpinner(spinner.Dot), spinner.WithStyle(lipgloss.NewStyle().Foreground(accent))),
 	}
@@ -130,26 +140,25 @@ func (m *model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	key := msg.String()
-	if key == "ctrl+c" {
+	if key.Matches(msg, m.keys.Interrupt) {
 		return m.stop()
 	}
-	if m.done && (key == "enter" || key == "esc" || key == "q") {
+	if m.done && key.Matches(msg, m.keys.Close) {
 		return m, tea.Quit
 	}
-	if key == "ctrl+l" {
+	if key.Matches(msg, m.keys.ClearHistory) {
 		m.history = ""
 		m.results.SetContent("")
 		m.results.SetXOffset(0)
 		return m, nil
 	}
-	if key == "q" && !m.editing() {
+	if key.Matches(msg, m.keys.Quit) && !m.editing() {
 		return m.stop()
 	}
 	if m.width < 40 || m.height < 18 {
 		return m, nil
 	}
-	if key == "tab" || key == "shift+tab" {
+	if key.Matches(msg, m.keys.Focus) {
 		if m.confirming() {
 			return m, nil
 		}
@@ -165,8 +174,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if key == "pgup" || key == "pgdown" || m.resultsFocused || m.done {
-		if key == "esc" || key == "enter" {
+	if key.Matches(msg, m.keys.Page) || m.resultsFocused || m.done {
+		if key.Matches(msg, m.keys.Cancel, m.keys.Accept) {
 			m.resultsFocused = false
 			m.resize()
 			if m.request != nil && m.request.kind != selectPrompt {
@@ -184,11 +193,11 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.request.kind != selectPrompt {
-		switch key {
-		case "enter":
+		switch {
+		case key.Matches(msg, m.keys.Accept):
 			m.respond(answer{value: m.input.Value()})
 			return m, nil
-		case "esc":
+		case key.Matches(msg, m.keys.Cancel):
 			m.respond(answer{err: ErrCanceled})
 			return m, nil
 		default:
@@ -197,8 +206,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	}
-	if m.searching && key != "up" && key != "down" && key != "enter" {
-		if key == "esc" {
+	if m.searching && !key.Matches(msg, m.keys.FilterMove, m.keys.Accept) {
+		if key.Matches(msg, m.keys.Cancel) {
 			m.searching = false
 			m.filter.Reset()
 			m.filter.Blur()
@@ -211,28 +220,28 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.refilter()
 		return m, cmd
 	}
-	switch key {
-	case "up", "k":
+	switch {
+	case key.Matches(msg, m.keys.Up):
 		m.selected = max(0, m.selected-1)
-	case "down", "j":
+	case key.Matches(msg, m.keys.Down):
 		m.selected = min(max(0, len(m.matches)-1), m.selected+1)
-	case "home":
+	case key.Matches(msg, m.keys.First):
 		m.selected = 0
-	case "end":
+	case key.Matches(msg, m.keys.Last):
 		m.selected = max(0, len(m.matches)-1)
-	case "/":
+	case key.Matches(msg, m.keys.Search):
 		if !m.confirming() {
 			m.searching = true
 			return m, m.filter.Focus()
 		}
-	case "enter":
+	case key.Matches(msg, m.keys.Accept):
 		if len(m.matches) > 0 {
 			choice := m.request.options[m.matches[m.selected]]
 			m.lastChoice = choice
 			m.appendOutput("\n› " + m.request.label + " · " + choice + "\n")
 			m.respond(answer{value: choice})
 		}
-	case "esc", "left":
+	case key.Matches(msg, m.keys.Back):
 		for _, back := range []string{"取消", "返回上级菜单", "退出"} {
 			if slices.Contains(m.request.options, back) {
 				m.lastChoice = back

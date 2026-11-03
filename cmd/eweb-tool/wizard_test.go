@@ -21,6 +21,7 @@ type fakePrompt struct {
 	selections      []int
 	endpoint        string
 	password        string
+	passwordErr     error
 	passwordCalls   int
 	endpointDefault string
 }
@@ -47,7 +48,7 @@ func (p *fakePrompt) Input(_ string, value string) (string, error) {
 
 func (p *fakePrompt) Password(_ string) (string, error) {
 	p.passwordCalls++
-	return p.password, nil
+	return p.password, p.passwordErr
 }
 
 func loginResult(sn string) *moduleauth.LoginResult {
@@ -101,24 +102,28 @@ func TestNewDeviceDefaultAndSavedLogin(t *testing.T) {
 	if err != nil || plain != "secret-password" {
 		t.Fatal("password was not saved as compatible ciphertext")
 	}
-	savedPrompt := &fakePrompt{selections: []int{0, 0, 7}}
+	savedPrompt := &fakePrompt{selections: []int{0, 7}}
 	if err := runWizard(context.Background(), loaded, path, false, savedPrompt, login, &output); err != nil {
 		t.Fatal(err)
 	}
-	if savedPrompt.passwordCalls != 0 {
-		t.Fatal("saved password requested again")
+	if savedPrompt.passwordCalls != 0 || len(savedPrompt.selections) != 0 || savedPrompt.endpointDefault != "" {
+		t.Fatal("saved login did not go directly from device selection to device menu")
 	}
 }
 
-func TestLegacyAndExplicitPasswordUpdates(t *testing.T) {
-	for _, mode := range []int{0, 1} {
-		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+func TestInvalidSavedPasswordPromptsForReplacement(t *testing.T) {
+	for _, tt := range []struct{ name, stored string }{
+		{"empty", ""},
+		{"legacy", "old-plaintext"},
+		{"corrupt", "U2FsdGVkX18invalid"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.New()
 			cfg.App.Debug = true
-			cfg.Device["SN001"] = config.DeviceConfig{Endpoint: "https://device", Password: "old-plaintext"}
+			cfg.Device["SN001"] = config.DeviceConfig{Endpoint: "https://device", Password: tt.stored}
 			cfg.Device["SN002"] = config.DeviceConfig{Endpoint: "https://other-device", Password: "other-ciphertext"}
 			path := filepath.Join(t.TempDir(), "config.toml")
-			prompt := &fakePrompt{selections: []int{0, mode, 7}, password: "new-password"}
+			prompt := &fakePrompt{selections: []int{0, 7}, password: "new-password"}
 			login := func(_ context.Context, _ *client.Client, password string) (*moduleauth.LoginResult, error) {
 				if password != "new-password" {
 					t.Fatal("legacy password was reused")
@@ -137,6 +142,109 @@ func TestLegacyAndExplicitPasswordUpdates(t *testing.T) {
 			}
 			if plain, err := passwordauth.DecryptAuthKey(cfg.Device["SN001"].Password, passwordauth.StoragePassphrase); err != nil || plain != "new-password" {
 				t.Fatal("password update failed")
+			}
+		})
+	}
+}
+
+func TestSavedLoginFailureRequestsNewPassword(t *testing.T) {
+	rejected := errors.New("login rejected")
+	inputCanceled := errors.New("password input canceled")
+	locked := fmt.Errorf("login: %w", &moduleauth.LoginLockedError{Seconds: 60})
+	for _, tt := range []struct {
+		name              string
+		firstErr          error
+		retryErr          error
+		passwordErr       error
+		cancel            bool
+		wantErr           error
+		wantCalls         int
+		wantPasswordCalls int
+	}{
+		{name: "replacement succeeds", firstErr: rejected, wantCalls: 2, wantPasswordCalls: 1},
+		{name: "replacement fails", firstErr: rejected, retryErr: rejected, wantErr: rejected, wantCalls: 2, wantPasswordCalls: 1},
+		{name: "input canceled", firstErr: rejected, passwordErr: inputCanceled, wantErr: inputCanceled, wantCalls: 1, wantPasswordCalls: 1},
+		{name: "context canceled", firstErr: rejected, cancel: true, wantErr: context.Canceled, wantCalls: 1},
+		{name: "login canceled", firstErr: context.Canceled, wantErr: context.Canceled, wantCalls: 1},
+		{name: "login timed out", firstErr: context.DeadlineExceeded, wantErr: context.DeadlineExceeded, wantCalls: 1},
+		{name: "device locked", firstErr: locked, wantErr: locked, wantCalls: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ciphertext, err := passwordauth.GenerateAuthKey("saved-password", passwordauth.StoragePassphrase)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg := config.New()
+			cfg.App.Debug = true
+			stored := config.DeviceConfig{Endpoint: "https://device", Password: ciphertext}
+			cfg.Device["SN001"] = stored
+			cfg.Device["SN002"] = config.DeviceConfig{Endpoint: "https://other-device", Password: "other-ciphertext"}
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := cfg.SaveToFile(path); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			prompt := &fakePrompt{selections: []int{0, 7}, password: "replacement-password", passwordErr: tt.passwordErr}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			calls := 0
+			login := func(_ context.Context, c *client.Client, password string) (*moduleauth.LoginResult, error) {
+				calls++
+				if c.Endpoint() != stored.Endpoint {
+					t.Fatal("saved endpoint changed")
+				}
+				if calls == 1 {
+					if password != "saved-password" || prompt.passwordCalls != 0 {
+						t.Fatal("saved password was not tried before prompting")
+					}
+					if tt.cancel {
+						cancel()
+					}
+					return nil, tt.firstErr
+				}
+				if calls != 2 || password != "replacement-password" || prompt.passwordCalls != 1 {
+					t.Fatal("retry did not use the replacement password exactly once")
+				}
+				return loginResult("SN001"), tt.retryErr
+			}
+			var output bytes.Buffer
+			if err := runWizard(ctx, cfg, path, false, prompt, login, &output); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error=%v, want %v", err, tt.wantErr)
+			}
+			if calls != tt.wantCalls || prompt.passwordCalls != tt.wantPasswordCalls {
+				t.Fatalf("login calls=%d, password prompts=%d", calls, prompt.passwordCalls)
+			}
+			if !cfg.App.Debug || cfg.Device["SN002"].Password != "other-ciphertext" {
+				t.Fatal("retry lost unrelated configuration")
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.wantErr != nil {
+				if !bytes.Equal(before, after) || cfg.Device["SN001"] != stored {
+					t.Fatal("failed or canceled retry changed the saved configuration")
+				}
+			} else {
+				loaded, err := config.LoadFromFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				plain, err := passwordauth.DecryptAuthKey(loaded.Device["SN001"].Password, passwordauth.StoragePassphrase)
+				if err != nil || plain != "replacement-password" || loaded.Device["SN001"] != cfg.Device["SN001"] {
+					t.Fatal("successful retry did not save the replacement password")
+				}
+				if !strings.Contains(output.String(), "请重新输入设备密码") || len(prompt.selections) != 0 {
+					t.Fatal("retry did not explain the failure and enter the device menu")
+				}
+			}
+			for _, secret := range []string{"saved-password", "replacement-password", "private-session", "private-token"} {
+				if strings.Contains(output.String(), secret) || bytes.Contains(after, []byte(secret)) {
+					t.Fatal("retry printed or persisted a secret in plaintext")
+				}
 			}
 		})
 	}

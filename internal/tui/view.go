@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -41,6 +42,7 @@ func (m *model) layout() layout {
 
 func (m *model) resize() {
 	l := m.layout()
+	m.help.SetWidth(max(1, m.width-statusTheme.Help.GetHorizontalPadding()))
 	m.results.SetWidth(max(1, l.resultW-4))
 	m.results.SetHeight(max(1, l.resultH-4))
 	inputWidth := l.navW
@@ -54,7 +56,7 @@ func (m *model) resize() {
 func (m *model) View() tea.View {
 	var content string
 	if m.width < 40 || m.height < 18 {
-		content = "RUIJIE\n请扩大终端至至少 40×18\nCtrl+C 退出"
+		content = "请扩大终端至至少 40×18\n" + m.help.ShortHelpView([]key.Binding{m.keys.Interrupt})
 	} else {
 		header := lipgloss.NewStyle().Bold(true).Foreground(accent).Render(clip(m.title, m.width))
 		header += "\n" + lipgloss.NewStyle().Foreground(muted).Render(clip(m.subtitle, m.width)) + "\n\n"
@@ -65,7 +67,7 @@ func (m *model) View() tea.View {
 		}
 		body := nav
 		if l.resultW > 0 {
-			resultTitle := fmt.Sprintf("结果  %.0f%%", m.results.ScrollPercent()*100)
+			resultTitle := fmt.Sprintf("%.0f%%", m.results.ScrollPercent()*100)
 			result := m.results.View()
 			if m.history == "" {
 				result = lipgloss.NewStyle().Foreground(muted).Render("操作结果会显示在这里。\nTab 切换到结果，方向键滚动。")
@@ -79,20 +81,7 @@ func (m *model) View() tea.View {
 				body = nav + "\n" + results
 			}
 		}
-		help := "↑↓ / j k 选择  Enter 确认  / 搜索  Esc 返回  q 退出"
-		if m.editing() {
-			help = "Enter 提交  Esc 取消  Ctrl+U 清空  Tab 查看结果"
-		}
-		if m.resultsFocused {
-			help = "↑↓ 滚动  ←→ 横移  PgUp/PgDn 翻页  Tab 返回菜单"
-		}
-		if m.confirming() {
-			help = "↑↓ 选择  Enter 确认  Esc 取消"
-		}
-		if m.done {
-			help = "↑↓ / ←→ 查看结果  Enter / q 退出"
-		}
-		footer := "\n" + statusTheme.Help.Width(m.width).Render(clip(help, m.width-2)) + "\n" + m.statusView() + "\n"
+		footer := "\n" + statusTheme.Help.Width(m.width).Render(m.help.ShortHelpView(m.helpBindings())) + "\n" + m.statusView() + "\n"
 		content = header + body + footer
 	}
 	v := tea.NewView(fit(content, m.width, m.height))
