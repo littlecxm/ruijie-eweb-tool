@@ -46,6 +46,8 @@ Accept: application/json
 `device`。省略 `params` 或传 `null` 时，分发器使用空 Lua table。
 本文示例省略 `jsonrpc` 字段，与仓库现有客户端的调用格式一致。
 
+文档导航和交互菜单总览见 [文档索引](README.md)。
+
 只读调用示例：
 
 ```sh
@@ -143,6 +145,50 @@ RPC 方法不存在的响应示例：
 | 查询清理脚本 | [`hasKillRemaining`](#haskillremaining) | `null` | 只读 |
 | 执行清理脚本 | [`doKillRemaining`](#dokillremaining) | `null` | 内部辅助函数，同步执行脚本 |
 | 生成重启命令 | [`getRebootShell`](#getrebootshell) | `"user reboot"` | 内部辅助函数，仅返回命令文本 |
+
+## eweb-tool 实现
+
+Go 包为 `pkg/eweb-module/system`。以下函数均接收 `ctx`、`c *client.Client`、
+`sid`；表中的参数为这三个公共参数之后的部分。全部 16 个公开方法均有客户端实现和菜单入口。
+
+| RPC 方法 | Go 函数及额外参数 | 二级菜单位置 |
+| --- | --- | --- |
+| `setLang` | `SetLang(..., lang string) error` | 系统设置 → 设置 Web 语言 |
+| `getVersion` | `GetVersion(..., deviceType string)` | 系统状态 → 当前版本 / 检查新版本 |
+| `asyncTime` | `AsyncTime(...)` | 系统状态 → 设备时间 |
+| `getSessiontime` | `GetSessionTime(...)` | 系统状态 → 会话超时 |
+| `setStep` | `SetStep(..., steped string) error` | 系统设置 → 设置引导状态 |
+| `getOverlayFreeSpace` | `GetOverlayFreeSpace(...)` | 系统状态 → Overlay 剩余空间 |
+| `reboot` | `Reboot(...)` | 设备维护 → 重启设备 |
+| `restoreConfiguration` | `RestoreConfiguration(...)` | 设备维护 → 恢复出厂配置 |
+| `upgradeConfirm` | `UpgradeConfirm(..., options UpgradeOptions)` | 固件升级 → 提交固件升级 |
+| `upgradeCancel` | `UpgradeCancel(...)` | 固件升级 → 删除待升级固件 |
+| `hasBackupFile` | `HasBackupFile(...)` | 备份与恢复 → 检查设备备份文件 |
+| `restoreConfig` | `RestoreConfig(..., localMAC bool)` | 备份与恢复 → 恢复设备备份 |
+| `delRestoreConfig` | `DelRestoreConfig(...)` | 备份与恢复 → 删除设备备份文件 |
+| `hasKillRemaining` | `HasKillRemaining(...)` | 设备维护 → 检查升级清理脚本 |
+| `doKillRemaining` | `DoKillRemaining(...) error` | 设备维护 → 执行升级清理脚本 |
+| `getRebootShell` | `GetRebootShell(..., reason string)` | 设备维护 → 查看重启命令 |
+
+除表中标明仅返回 `error` 的函数外，其余返回相应数据及 `error`：版本为 `*Version`，
+异步操作为 `*Operation`，备份状态为 `*BackupFile`，脚本存在性为 `bool`，
+会话超时为 `int` 秒，其他文本接口为 `string`。
+`Version.New` 保留为 `json.RawMessage`，兼容对象、数组、字符串等脚本输出。
+
+客户端检查所有操作的 `data.code` 和设置的 `data.result`。缺少这些业务状态字段也返回错误，
+不会仅凭外层 `code=0` 报告成功。`hasKillRemaining` 的 `null` 映射为 `false`，
+`doKillRemaining` 接受合法的 `null` 返回值；缺少 `data` 仍视为协议错误。
+
+`GetVersion` 使用空字符串表示仅查询当前版本，以 `self` / `bottom` 触发相应检查；
+`SetStep` 只接受字符串 `"0"` / `"1"`。
+`UpgradeOptions` 的 `Path` 必须是设备上的绝对路径，三个开关均为 Go `bool` 并编码为
+JSON boolean；客户端会拦截空路径及固件过滤的命令控制字符。
+`RestoreConfig` 的 `localMAC=true` 发送 URL 查询参数 `localMac=1`，不混入 JSON 请求体。
+
+菜单中的升级提交只操作已经在设备上的固件，不负责上传或验证镜像。
+重启、恢复出厂、恢复备份、升级和升级清理请求成功后结束当前会话；
+删除、重启、恢复、升级及清理操作默认取消，确认后才发送请求，不自动重试。
+这些交互确认属于命令行向导；Go API 供自动化直接调用，由调用方决定操作时机。
 
 ## 基础设置与状态
 

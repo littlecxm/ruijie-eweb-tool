@@ -69,38 +69,73 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
 
 // Call posts a common eWeb request. sid is empty for unauthenticated requests.
 func (c *Client) Call(ctx context.Context, api string, request ApiCommonReq, sid string, result any) error {
-	if api == "" || strings.ContainsAny(api, "/? #\\") || api == "." || api == ".." {
-		return errors.New("invalid API name")
-	}
-	body, err := json.Marshal(request)
-	if err != nil {
-		return errors.New("encode API request")
-	}
-	u := c.endpoint.ResolveReference(&url.URL{Path: "/cgi-bin/luci/api/" + api})
-	if sid != "" {
-		u.RawQuery = url.Values{"auth": {sid}}.Encode()
-	}
-	data, err := c.request(ctx, http.MethodPost, u, body)
+	return c.CallWithQuery(ctx, api, request, sid, nil, result)
+}
+
+// CallWithQuery adds module-specific query parameters. The auth parameter is
+// reserved for sid and cannot be overridden by query.
+func (c *Client) CallWithQuery(ctx context.Context, api string, request ApiCommonReq, sid string, query url.Values, result any) error {
+	data, err := c.call(ctx, api, request, sid, query)
 	if err != nil {
 		return err
-	}
-	var response ApiResp
-	if err := json.Unmarshal(data, &response); err != nil || response.Code == nil {
-		return errors.New("invalid API response envelope")
-	}
-	if *response.Code != 0 || hasError(response.Error) {
-		return &APIError{Code: *response.Code, Message: errorMessage(response)}
 	}
 	if result == nil {
 		return nil
 	}
-	if len(response.Data) == 0 || bytes.Equal(bytes.TrimSpace(response.Data), []byte("null")) {
+	if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return errors.New("API response is missing data")
 	}
-	if err := json.Unmarshal(response.Data, result); err != nil {
+	if err := json.Unmarshal(data, result); err != nil {
 		return errors.New("invalid API response data")
 	}
 	return nil
+}
+
+// CallRaw preserves a JSON null result, which LuCI uses for false and void
+// methods. Missing data is still an invalid response.
+func (c *Client) CallRaw(ctx context.Context, api string, request ApiCommonReq, sid string) (json.RawMessage, error) {
+	data, err := c.call(ctx, api, request, sid, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, errors.New("API response is missing data")
+	}
+	return data, nil
+}
+
+func (c *Client) call(ctx context.Context, api string, request ApiCommonReq, sid string, query url.Values) (json.RawMessage, error) {
+	if api == "" || strings.ContainsAny(api, "/? #\\") || api == "." || api == ".." {
+		return nil, errors.New("invalid API name")
+	}
+	if _, exists := query["auth"]; exists {
+		return nil, errors.New("auth query parameter is reserved for sid")
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		return nil, errors.New("encode API request")
+	}
+	u := c.endpoint.ResolveReference(&url.URL{Path: "/cgi-bin/luci/api/" + api})
+	values := make(url.Values, len(query)+1)
+	for key, value := range query {
+		values[key] = value
+	}
+	if sid != "" {
+		values.Set("auth", sid)
+	}
+	u.RawQuery = values.Encode()
+	data, err := c.request(ctx, http.MethodPost, u, body)
+	if err != nil {
+		return nil, err
+	}
+	var response ApiResp
+	if err := json.Unmarshal(data, &response); err != nil || response.Code == nil {
+		return nil, errors.New("invalid API response envelope")
+	}
+	if *response.Code != 0 || hasError(response.Error) {
+		return nil, &APIError{Code: *response.Code, Message: errorMessage(response)}
+	}
+	return response.Data, nil
 }
 
 func (c *Client) request(ctx context.Context, method string, u *url.URL, body []byte) ([]byte, error) {

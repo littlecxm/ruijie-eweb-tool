@@ -60,7 +60,7 @@ func loginResult(sn string) *moduleauth.LoginResult {
 func TestNewDeviceDefaultAndSavedLogin(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	cfg := config.New()
-	prompt := &fakePrompt{selections: []int{0}, password: "secret-password"}
+	prompt := &fakePrompt{selections: []int{0, 7}, password: "secret-password"}
 	var output bytes.Buffer
 	login := func(_ context.Context, c *client.Client, password string) (*moduleauth.LoginResult, error) {
 		if c.Endpoint() != "https://192.168.110.1" || password != "secret-password" {
@@ -101,7 +101,7 @@ func TestNewDeviceDefaultAndSavedLogin(t *testing.T) {
 	if err != nil || plain != "secret-password" {
 		t.Fatal("password was not saved as compatible ciphertext")
 	}
-	savedPrompt := &fakePrompt{selections: []int{0, 0}}
+	savedPrompt := &fakePrompt{selections: []int{0, 0, 7}}
 	if err := runWizard(context.Background(), loaded, path, false, savedPrompt, login, &output); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestLegacyAndExplicitPasswordUpdates(t *testing.T) {
 			cfg.Device["SN001"] = config.DeviceConfig{Endpoint: "https://device", Password: "old-plaintext"}
 			cfg.Device["SN002"] = config.DeviceConfig{Endpoint: "https://other-device", Password: "other-ciphertext"}
 			path := filepath.Join(t.TempDir(), "config.toml")
-			prompt := &fakePrompt{selections: []int{0, mode}, password: "new-password"}
+			prompt := &fakePrompt{selections: []int{0, mode, 7}, password: "new-password"}
 			login := func(_ context.Context, _ *client.Client, password string) (*moduleauth.LoginResult, error) {
 				if password != "new-password" {
 					t.Fatal("legacy password was reused")

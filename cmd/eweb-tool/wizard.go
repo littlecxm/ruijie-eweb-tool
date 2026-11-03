@@ -125,7 +125,7 @@ func runWizard(ctx context.Context, cfg *config.Config, path string, verifyTLS b
 		model = result.Authority.Sysinfo.Model
 	}
 	fmt.Fprintf(out, "登录成功：SN=%s，型号=%s，设备地址=%s\n配置已保存至 %s\n", result.Session.SN, model, c.Endpoint(), path)
-	return nil
+	return runDeviceMenu(ctx, c, result.Session.SID, prompt, out)
 }
 
 func saveLogin(cfg *config.Config, path, selectedSN, endpoint, password string, result *moduleauth.LoginResult) error {

@@ -8,10 +8,61 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestCallRawNullAndFailures(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{`{"code":0,"data":null}`, "null"},
+		{`{"code":0,"data":false}`, "false"},
+		{`{"code":0,"data":true}`, "true"},
+		{`{"code":0}`, ""},
+		{`{"data":null}`, ""},
+		{`{"code":0,"data":null,"error":{"message":"denied"}}`, ""},
+	} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, tc.body) }))
+		c, _ := New(server.URL)
+		got, err := c.CallRaw(context.Background(), "system", ApiCommonReq{Method: "hasKillRemaining"}, "sid")
+		if tc.want == "" {
+			if err == nil {
+				t.Errorf("accepted %s", tc.body)
+			}
+		} else if err != nil || string(got) != tc.want {
+			t.Errorf("CallRaw = %s, %v; want %s", got, err, tc.want)
+		}
+		c.CloseIdleConnections()
+		server.Close()
+	}
+}
+
+func TestCallWithQuery(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Query().Get("auth") != "sid +/?" || r.URL.Query().Get("localMac") != "1" {
+			t.Error("incorrect encoded query")
+		}
+		io.WriteString(w, `{"code":0,"data":{"code":0}}`)
+	}))
+	defer server.Close()
+	c, _ := New(server.URL)
+	defer c.CloseIdleConnections()
+	query := url.Values{"localMac": {"1"}}
+	var result struct{ Code int }
+	if err := c.CallWithQuery(context.Background(), "system", ApiCommonReq{Method: "restoreConfig"}, "sid +/?", query, &result); err != nil {
+		t.Fatal(err)
+	}
+	if query.Encode() != "localMac=1" {
+		t.Fatal("mutated caller query")
+	}
+	query.Set("auth", "other")
+	if err := c.CallWithQuery(context.Background(), "system", ApiCommonReq{Method: "restoreConfig"}, "sid", query, &result); err == nil || calls != 1 {
+		t.Fatal("allowed auth override")
+	}
+}
 
 func TestCallRequest(t *testing.T) {
 	const sid = "session +/?"

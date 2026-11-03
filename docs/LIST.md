@@ -1,10 +1,18 @@
 # Eweb Module List
 
+已实现的接口、Go API 和菜单入口见 [文档索引](README.md)。
+`overview` 的全部 4 个公开方法及 `system` 的全部 16 个公开方法已实现。
+
 ## 概览
 
 | API        | Method       | Module |
 | ---------- | ------------ | ------ |
 | api/common | getAuthority | nil    |
+
+| API | Method | 文档 |
+| --- | --- | --- |
+| api/overview | getSysinfo / getDeviceInfo / getUptime / getHostName | [设备概览](overview.md) |
+| api/system | 全部 16 个公开方法 | [系统管理](system.md) |
 
 ## 监控
 
